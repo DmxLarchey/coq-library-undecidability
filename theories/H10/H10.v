@@ -46,7 +46,7 @@ Defined.
 
 Theorem DIO_SINGLE_SAT_H10 : DIO_SINGLE_SAT ⪯ H10.
 Proof.
-  apply reduction_dependent; exists.
+  apply reduction_dependent.
   intros (E,v).
   destruct (dio_poly_eq_pos E) as (n & p & q & H).
   exists (existT _ n (dp_inst_par v p, dp_inst_par v q)).

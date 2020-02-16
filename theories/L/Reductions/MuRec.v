@@ -426,10 +426,10 @@ Local Definition r := (fun c n => match eval n 0 c [] with Some (inl n) => true 
 Lemma MUREC_WCBV : MUREC_HALTING ⪯ converges.
 Proof.
   eapply reduces_transitive. eapply MUREC_red.
-  eapply L_recognisable_halt.
+  eapply L_recognisable_t_halt.
   exists (fun c n => match eval n 0 c [] with Some (inl n) => true | _ => false end).
   split.
-  - econstructor. extract.
+  - extract.
   - firstorder.
     + unfold evalfun in *. exists x0. destruct eval; try destruct s; try congruence.
     + exists x0. unfold evalfun in *. destruct eval; try destruct s; try congruence.

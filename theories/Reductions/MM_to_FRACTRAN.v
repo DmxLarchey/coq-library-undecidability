@@ -7,7 +7,7 @@
 (*         CeCILL v2 FREE SOFTWARE LICENSE AGREEMENT          *)
 (**************************************************************)
 
-Require Import Arith Omega Max.
+Require Import Arith List Omega Max.
 
 From Undecidability Require Import ILL.Definitions.
 

@@ -242,17 +242,6 @@ Section vector.
   Fact in_vec_list n v : @in_vec n v <-> In x (vec_list v).
   Proof. induction v; simpl; tauto. Qed.
 
-  Variable x : X.
-
-  Fixpoint in_vec n (v : vec n) : Prop :=
-    match v with
-      | vec_nil      => False
-      | vec_cons y v => y = x \/ in_vec v
-    end.
-
-  Fact in_vec_list n v : @in_vec n v <-> In x (vec_list v).
-  Proof. induction v; simpl; tauto. Qed.
-
 End vector.
 
 Fact in_vec_pos X n (v : vec X n) p : in_vec (vec_pos v p) v.

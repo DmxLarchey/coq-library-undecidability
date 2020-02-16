@@ -41,13 +41,24 @@ Qed.
 Definition L_recognisable {X} `{registered X} (p : X -> Prop) :=
   exists f : X -> nat -> bool, is_computable f /\ forall x, p x <-> exists n, f x n = true.
 
+Definition L_recognisable_t {X} `{registered X} (p : X -> Prop) :=
+  { f : X -> nat -> bool & 
+  { _ : computable f | forall x, p x <-> exists n, f x n = true } }.
+
+Fact L_recognisable_t_eq X HX P : inhabited (@L_recognisable_t X HX P) <-> L_recognisable P.
+Proof.
+  split.
+  + intros [ (f & H1 & H2) ]; exists f; split; auto; exists; auto.
+  + intros (f & [H1] & H2); exists; exists f, H1; auto.
+Qed. 
+
 Definition L_recognisable' {X} `{registered X} (p : X -> Prop) :=
   exists s : term, forall x, p x <-> converges (s (enc x)).
 
-Definition L_recognisable_t {X} `{registered X} (p : X -> Prop) :=
+Definition L_recognisable'_t {X} `{registered X} (p : X -> Prop) :=
   { s : term | forall x, p x <-> converges (s (enc x)) }.
 
-Fact L_recognisable_t_eq X HX P : inhabited (@L_recognisable_t X HX P) <-> L_recognisable P.
+Fact L_recognisable'_t_eq X HX P : inhabited (@L_recognisable'_t X HX P) <-> L_recognisable' P.
 Proof.
   split.
   + intros [ (f & H1) ]; exists f; auto.
@@ -76,8 +87,8 @@ Section L_enum_rec.
     cbn. Lproc.
   Qed.
     
-  Lemma L_enumerable_recognisable :
-    L_recognisable' p.
+  Lemma L_enumerable_recognisable'_t :
+    L_recognisable'_t p.
   Proof.
     exists (λ x, !!mu (λ y, !!(ext test) x y)).
     intros. split; intros.
@@ -102,22 +113,18 @@ Section L_enum_rec.
   Qed.
 
 End L_enum_rec.
-  
+ 
 Definition L_nat := (fix f n := match n with 0 => [0] | S n => f n ++ [S n] end)%list.
 
 Instance term_L_nat : computable L_nat.
-Proof.
-  extract.
-Qed.
+Proof. extract. Qed.
 
 Definition T_nat_nat := Eval cbn in @L_T (nat * nat) _.
 
 Definition pair' : nat * nat -> nat * nat := fun '(x,y) => (x,y).
 
 Instance term_pair' : computable pair'.
-Proof.
-  extract.
-Qed.
+Proof. extract. Qed.
 
 Instance term_T_nat_nat : computable T_nat_nat.
 Proof.
@@ -218,7 +225,7 @@ Lemma L_enumerable_t_halt {X} `{registered X} (p : X -> Prop) :
   L_enumerable_t p -> p ⪯ converges.
 Proof.
   intros (d & c_d & H_d) (f & c_f & H_f).
-  edestruct L_enumerable_t_recognisable_t with (p := p) (d := fun x y => d (x,y)) (f := f); eauto.
+  edestruct L_enumerable_recognisable'_t with (p := p) (d := fun x y => d (x,y)) (f := f); eauto.
   - extract.
   - intros. specialize (H_d (x,y)). destruct (d (x,y)); intuition.
   - now exists (fun x0 => x (enc x0)). 
@@ -232,7 +239,7 @@ Proof.
   intros [H1] [H2]; exists; revert H1 H2; apply L_enumerable_t_halt.
 Qed.  
 
-Lemma L_recognisable'_recognisable {X} `{registered X} (p : X -> Prop) :
+Lemma L_recognisable_recognisable' {X} `{registered X} (p : X -> Prop) :
   L_recognisable p -> L_recognisable' p.
 Proof.
   intros (f & [c_f] & H_f).
@@ -246,10 +253,26 @@ Proof.
     now assert ((lam (((ext f) (enc x)) 0)) (ext n) == enc (f x n)) as <- by Lsimpl.
   - Lproc.
   - intros. exists (f x n). Lsimpl.
+Qed.
+
+Lemma L_recognisable_t_recognisable'_t {X} `{registered X} (p : X -> Prop) :
+  L_recognisable_t p -> L_recognisable'_t p.
+Proof.
+  intros (f & c_f & H_f).
+  exists (lam (mu (lam (ext f 1 0)))).
+  intros. 
+  assert (((lam (mu (lam ((ext f 1) 0)))) (enc x)) >* mu (lam (ext f (enc x) 0))) by Lsimpl.
+  rewrite H0. rewrite mu_spec.
+  - rewrite H_f. split; intros [n]; exists n.
+    Lsimpl. now rewrite H1.
+    eapply enc_extinj.
+    now assert ((lam (((ext f) (enc x)) 0)) (ext n) == enc (f x n)) as <- by Lsimpl.
+  - Lproc.
+  - intros. exists (f x n). Lsimpl.
 Qed.    
 
-Lemma L_recognisable_halt {X} `{registered X} (p : X -> Prop) :
-  L_recognisable p -> p ⪯ converges.
+Lemma L_recognisable_t_halt {X} `{registered X} (p : X -> Prop) :
+  L_recognisable_t p -> p ⪯ converges.
 Proof.
-  intros. eapply L_recognisable'_recognisable in H0 as  (f & H_f). now exists (fun x0 => f (enc x0)). 
+  intros H0. eapply L_recognisable_t_recognisable'_t in H0 as  (f & H_f). now exists (fun x0 => f (enc x0)). 
 Qed.
