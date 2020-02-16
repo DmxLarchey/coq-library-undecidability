@@ -6,7 +6,7 @@
 (*      This file is distributed under the terms of the       *)
 (*         CeCILL v2 FREE SOFTWARE LICENSE AGREEMENT          *)
 (**************************************************************)
-
+ 
 (* Require Import Arith Omega Max List. *)
 
 Require Import Arith Omega List Permutation.
@@ -188,7 +188,7 @@ Section vector.
 
   Fact map_pos_list_vec n f : map f (pos_list n) = vec_list (@vec_set_pos n f).
   Proof. rewrite vec_list_vec_set_pos; auto. Qed.
-    
+
   Fact vec_list_length n v : length (@vec_list n v) = n.
   Proof. induction v; simpl; f_equal; auto. Defined.
 
@@ -230,6 +230,17 @@ Section vector.
     + apply vec_list_inv.
     + intros (p & ->); apply vec_list_In.
   Qed.
+
+  Variable x : X.
+
+  Fixpoint in_vec n (v : vec n) : Prop :=
+    match v with
+      | vec_nil      => False
+      | vec_cons y v => y = x \/ in_vec v
+    end.
+
+  Fact in_vec_list n v : @in_vec n v <-> In x (vec_list v).
+  Proof. induction v; simpl; tauto. Qed.
 
   Variable x : X.
 

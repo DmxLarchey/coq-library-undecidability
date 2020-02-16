@@ -10,7 +10,7 @@
 Require Import Arith Eqdep_dec Omega List Bool.
 
 From Undecidability.Shared.Libs.DLW.Utils 
-  Require Import utils_tac utils_nat utils_list finite. 
+  Require Import utils_tac utils_nat utils_list finite.
 
 From Undecidability.Shared.Libs.DLW.Vec 
   Require Import pos vec.
