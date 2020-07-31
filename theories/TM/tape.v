@@ -162,6 +162,82 @@ Section tapes.
           rewrite iterZ_plus; auto; do 2 f_equal; ring.
     Qed.
 
-   End tape_0_props.
+  End tape_0_props.
+
+  (** tapes with blank cells: 
+       - a,b,c for regular symbols in Σ
+       - ?,x for either blank or reg. in option Σ
+       - _ for blank in option Σ *)
+
+  (* it_one x represents 
+       a) either empty 
+             _ _ [_] _ _    as  (it_one None)
+       b) or exactly one non blank under the head
+             _ _ [a] _ _    as (it_one (Some a))
+
+     it_lft represents tapes which are entirely left of the head
+          _ _ a ? ? ? [x] _ _   as (it_lft a [?;?;?] x)
+
+     it_rt represents tapes which are entirely right of the head
+          _ _ [x] ? ? ? b _ _   as (it_rt x [?;?;?] b)
+
+     it_both represents tapes which are both left and right of the head
+          _ a ? ? [x] ? ? b _   as (it_both a l x r b)
+
+   *) 
+
+  Inductive itape : Type :=
+    | it_one  : option Σ -> itape
+    | it_lft  : Σ -> list (option Σ) -> option Σ -> itape
+    | it_rt   : option Σ -> list (option Σ) -> Σ -> itape
+    | it_both : Σ -> list (option Σ) -> option Σ -> list (option Σ) -> Σ -> itape.
+
+  (* Moving left *)
+
+  Definition mv_lft (t : itape) :=
+    match t with
+      | it_one None                     => it_one None                     (*  _ _ [_] _ _ ~~> _ [_] _ _ _ *)
+      | it_one (Some a)                 => it_rt None nil a                (*  _ _ [a] _ _ ~~> _ [_] a _ _ *)
+
+      | it_lft a nil         None       => it_one (Some a)                 (*  _ a [_] _ _ ~~> _ [a] _ _ _ *)
+      | it_lft a nil         (Some b)   => it_rt (Some a) nil b            (*  _ a [b] _ _ ~~> _ [a] b _ _ *)
+      | it_lft a (None::l)   None       => it_lft a l None                 (*  a _ [_] _ _ ~~> a [_] _ _ _ *)
+      | it_lft a (x::l)   (Some b)      => it_both a l x nil b             (*  a x [b] _ _ ~~> a [x] b _ _ *)
+      | it_lft a (Some b::l) None       => it_lft a l (Some b)             (*  a b [_] _ _ ~~> a [b] _ _ _ *)
+
+      | it_rt x l a                     => it_rt None (x::l) a             (*  _ _ [x] ? a ~~> _ [_] x ? a *)
+
+      | it_both a nil x r b             => it_rt (Some a) (x::r) b         (*  _ a [x] ? b ~~> _ [a] x ? b *)
+      | it_both a (x::l) y r b          => it_both a l x (y::r) b          (*  a x [y] ? b ~~> a [x] y ? b *)
+    end.
+
+  (* Moving right *)
+
+  Definition mv_rt (t : itape) :=
+    match t with
+      | it_one None                     => it_one None                     (*  _ _ [_] _ _ ~~> _ _ _ [_] _ *)
+      | it_one (Some a)                 => it_lft a nil None               (*  _ _ [a] _ _ ~~> _ _ a [_] _ *)
+
+      | it_lft a l x                    => it_lft a (x::l) None            (*  a ? [x] _ _ ~~> a ? x [_] _ *)
+
+      | it_rt None     nil     a        => it_one (Some a)                 (*  _ _ [_] a _ ~~> _ _ _ [a] _ *)
+      | it_rt (Some a) nil     b        => it_lft a nil (Some b)           (*  _ _ [a] b _ ~~> _ _ a [b] _ *)
+      | it_rt None     (None::l) b      => it_rt None l b                  (*  _ _ [_] _ b ~~> _ _ _ [_] b *)
+      | it_rt (Some a) (x::l) b         => it_both a nil x l b             (*  _ _ [a] x b ~~> _ _ a [x] b *)
+      | it_rt None     (Some a::l) b    => it_rt (Some a) l b              (*  _ _ [_] a b ~~> _ _ _ [a] b *)
+ 
+      | it_both a l x nil b             => it_lft a (x::l) (Some b)        (*  a ? [x] b _ ~~> a ? x [b] _ *)
+      | it_both a l x (y::r) b          => it_both a (x::l) y r b          (*  a ? [x] y b ~~> a ? x [y] b *)
+    end.
+
+  (* Left/right moves are strict inverse to each other *)
+
+  Fact mv_lft_rt t : mv_lft (mv_rt t) = t.
+  Proof. now destruct t as [ [] | ? [ | [] ] [] | [] [ | [] ] ? | ? [] [] [] ? ]. Qed.
+
+  Fact mv_rt_lft t : mv_rt (mv_lft t) = t.
+  Proof. now destruct t as [ [] | ? [ | [] ] [] | [] [ | [] ] ? | ? [] [] [] ? ]. Qed.
+
+  (* I think one can also show that equivalent tapes are identical with that definition *)
 
 End tapes.
