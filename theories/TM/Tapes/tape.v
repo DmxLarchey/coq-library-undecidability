@@ -2,15 +2,72 @@ Require Import ZArith Lia List.
 
 Set Implicit Arguments.
 
+Fact list_snoc {X} (l : list X) : { x & { m | l = m++x::nil } } + { l = nil }.
+Proof.
+  rewrite <- (rev_involutive l).
+  destruct (rev l) as [ | x m ].
+  + right; auto.
+  + left; exists x, (rev m); auto.
+Qed.
+
+Fact list_decomp_0 {X} (ll : list X) n :
+           { l : _ & { m | ll = l++m /\ length l = n } }
+         + { length ll < n }.
+Proof.
+  revert n; induction ll as [ | x ll IHll ]; intros [ | n ].
+  + left; exists nil, nil; auto.
+  + right; simpl; lia.
+  + left; exists nil, (x::ll); simpl; auto.
+  + destruct (IHll n) as [ (l & m & ? & ?) | H ].
+    * left; exists (x::l), m; simpl; subst; auto.
+    * right; simpl; lia.
+Qed.
+
+Fact list_decomp_1 {X} (ll : list X) n : 0 < n ->
+           { l : _ & { x : _ & { m | ll = l++x::m /\ S (length l) = n } } }
+         + { S (length ll) = n }
+         + { 2+length ll <= n }.
+Proof.
+  intros H.
+  destruct (list_decomp_0 ll n) as [ (l & m & H1 & H2) | H1 ].
+  + destruct (list_snoc l) as [ (x & l' & ->) | C ].
+    * left; left; subst; exists l', x, m; rewrite app_ass, app_length; simpl.
+      split; auto; lia.
+    * exfalso; subst; simpl in *; lia.
+  + destruct (eq_nat_dec n (S (length ll))).
+    * left; right; lia.
+    * right; lia.
+Qed.
+
 Section iter.
 
-  Variable (X : Type) (f : X -> X).
+  Variable (X : Type).
+
+  Definition repeat (x : X) := fix loop n :=
+    match n with 
+      | 0 => nil
+      | S n => x::loop n
+    end.
+
+  Fact repeat_plus x n m : repeat x (n+m) = repeat x n ++ repeat x m.
+  Proof. induction n; simpl; f_equal; auto. Qed.
+
+  Fact repeat_S x n : repeat x (S n) = repeat x n ++ x :: nil.
+  Proof. replace (S n) with (n+1) by lia; now rewrite repeat_plus. Qed.
+  
+  Fact repeat_length x n : length (repeat x n) = n.
+  Proof. induction n; simpl; lia. Qed.
+
+  Variable (f : X -> X).
 
   Fixpoint iter n x :=
     match n with
       | 0   => x
       | S n => iter n (f x)
     end.
+
+  Fact iter_succ n x : iter (S n) x = iter n (f x).
+  Proof. auto. Qed.
 
   Fact iter_plus n m x : iter n (iter m x) = iter (m+n) x.
   Proof. revert x; induction m; simpl; auto. Qed.
@@ -22,6 +79,18 @@ Section iter.
   Qed.
 
 End iter.
+
+Fact list_decomp_2 {X} (l : list (option X)) :
+           { n : _ & { x : _ & { m | l = repeat None n ++ Some x :: m } } }
+         + { l = repeat None (length l) }. 
+Proof.
+  induction l as [ | [x|] l IHl ].
+  + right; auto.
+  + left; exists 0, x, l; auto.
+  + destruct IHl as [ (n & y & m & ->) | -> ].
+    * left; exists (S n), y, m; auto.
+    * right; simpl; rewrite repeat_length; auto.
+Qed.
 
 Open Scope Z_scope.
 
@@ -315,18 +384,6 @@ Section tapes.
   Fact rd_wr t c : rd (wr t c) = Some c.
   Proof. now destruct t as [ [] | ? [ | [] ] [] | [] [ | [] ] ? | ? [] [] [] ? ]. Qed.
 
-  Fixpoint repeat {X} (x : X) n :=
-    match n with 
-      | 0 => nil
-      | S n => x::repeat x n
-    end.
-
-  Fact repeat_plus {X} (x : X) n m : repeat x (n+m) = repeat x n ++ repeat x m.
-  Proof. induction n; simpl; f_equal; auto. Qed.
-
-  Fact repeat_S {X} (x : X) n : repeat x (S n) = repeat x n ++ x :: nil.
-  Proof. replace (S n) with (n+1) by lia; now rewrite repeat_plus. Qed. 
-
   Fact iter_lft_it_rt_0 r b n : iter mv_lft n (it_rt None r b) = it_rt None (repeat None n++r) b.
   Proof.
     revert r; induction n as [ | n IHn ]; simpl; auto; intros r.
@@ -341,7 +398,7 @@ Section tapes.
     now rewrite iter_lft_it_rt_0.
   Qed.
 
-  Fact iter_lft_one_0 n : iter mv_lft n (it_one None) = it_one None.
+  Fact iter_lft_it_one_0 n : iter mv_lft n (it_one None) = it_one None.
   Proof. induction n; simpl; f_equal; auto. Qed.
 
   Fact iter_lft_it_one_1 b n : iter mv_lft (S n) (it_one (Some b)) = it_rt None (repeat None n) b.
@@ -370,16 +427,46 @@ Section tapes.
        -> iter mv_lft n (it_both a l x r b)
         = it_rt (Some a) (rev l++x::r) b.
   Proof.
-  Admitted.
+    intros H.
+    destruct (list_snoc l) as [ (y & m & ->) | -> ].
+    + rewrite app_length in H; simpl in H.
+      replace n with ((S (length m)) + 1) at 1.
+      rewrite <- iter_plus, iter_lft_it_both_0 with (1 := eq_refl).
+      simpl; f_equal; rewrite rev_app_distr, app_ass; auto.
+    + simpl in H; subst n; simpl; auto.
+  Qed.
 
   Fact iter_lft_it_both_2 a l x r b n :
           2+length l <= n
        -> iter mv_lft n (it_both a l x r b)
         = it_rt None (repeat None (n - 2 - length l)++Some a::rev l++x::r) b.
   Proof.
-  Admitted.
+    intros Hn.
+    replace n with (1+length l+(1+(n-2-length l))) by lia.
+    rewrite <- iter_plus, iter_lft_it_both_1 with (1 := eq_refl), <- iter_plus.
+    simpl.
+    rewrite iter_lft_it_rt_0; do 3 f_equal; lia.
+  Qed.
 
-  Fact iter_lft_it_lft a l x m b n : 
+  Fact iter_lft_it_lft_0 a x m n : 
+          iter mv_lft (S n) (it_lft a (repeat None n++x::m) None)
+        = it_lft a m x.
+  Proof.
+    induction n as [ | n IHn ].
+    + destruct x; auto.
+    + rewrite iter_succ; auto.
+  Qed.
+
+  Fact iter_lft_it_lft_0' a n : 
+          iter mv_lft (S n) (it_lft a (repeat None n) None)
+        = it_one (Some a).
+  Proof.
+    induction n as [ | n IHn ].
+    + simpl; auto.
+    + rewrite iter_succ; auto.
+  Qed.
+
+  Fact iter_lft_it_lft_1 a l x m b n : 
           S (length l) = n 
        -> iter mv_lft n (it_lft a (l++x::m) (Some b))
         = it_both a m x (rev l) b.
@@ -392,6 +479,113 @@ Section tapes.
       with (it_both a (l ++ x :: m) y nil b) by (destruct y; auto).
       rewrite <- iter_lft_it_both_0 with (r := nil) (1 := eq_refl); auto.
   Qed.
+
+  Fact iter_lft_it_lft_2 a l b n : 
+          S (length l) = n 
+       -> iter mv_lft n (it_lft a l (Some b))
+        = it_rt (Some a) (rev l) b.
+  Proof.
+    intros H.
+    destruct (list_snoc l) as [ (y & m & ->) | -> ].
+    + rewrite app_length in H; simpl in H.
+      replace n with ((S (length m)) + 1) at 1.
+      rewrite <- iter_plus, iter_lft_it_lft_1 with (1 := eq_refl).
+      simpl; f_equal; rewrite rev_app_distr; auto.
+    + simpl in H; subst n; simpl; auto.
+  Qed.
+
+  Fact iter_lft_it_lft_3 a l b n : 
+          2+length l <= n 
+       -> iter mv_lft n (it_lft a l (Some b))
+        = it_rt None (repeat None (n - 2 - length l)++Some a::rev l) b.
+  Proof.
+    intros Hn.
+    replace n with (1+length l+(1+(n-2-length l))) by lia.
+    rewrite <- iter_plus, iter_lft_it_lft_2 with (1 := eq_refl), <- iter_plus.
+    simpl; rewrite iter_lft_it_rt_0; do 3 f_equal; lia.
+  Qed.
+
+  (* These are the two essential results *)
+
+  Theorem rd_lwr t n c : 
+         0 < n 
+      -> rd (iter mv_lft n (wr t c)) 
+       = rd (iter mv_lft n t).
+  Proof.
+    intros Hn.
+    destruct t as [ x | a ll x | x ll b | a ll x r b ].
+    + simpl wr; destruct n as [ | n ]; try lia.
+      rewrite iter_lft_it_one_1.
+      destruct x as [ x | ].
+      * rewrite iter_lft_it_one_1; auto.
+      * rewrite iter_lft_it_one_0; auto.
+    + simpl.
+      destruct x as [ x | ].
+      * destruct (list_decomp_1 ll) with (1 := Hn)
+          as [ [ (l & y & m & -> & H2) | H1 ] | H1 ].
+        - rewrite !iter_lft_it_lft_1 with (1 := H2); auto.
+        - rewrite !iter_lft_it_lft_2; auto.
+        - rewrite !iter_lft_it_lft_3; auto.
+      * destruct (list_decomp_2 ll) as [ (n1 & y & m & ->) | H1 ].
+        - destruct n as [ | n ]; try lia.
+          destruct (lt_eq_lt_dec n n1) as [ [ H1 | <- ] | H1 ].
+          ++ replace n1 with (n + (S (n1 - S n))) by lia.
+             rewrite repeat_plus; simpl repeat. 
+             rewrite app_ass; simpl app.
+             rewrite iter_lft_it_lft_1; [ | rewrite repeat_length; auto ].
+             rewrite iter_lft_it_lft_0; auto.
+          ++ rewrite iter_lft_it_lft_1; [ | rewrite repeat_length; auto ].
+             rewrite iter_lft_it_lft_0; auto.
+          ++ replace (S n) with (S n1 + (S (n-S n1))) by lia.
+             rewrite <- !iter_plus.
+             rewrite iter_lft_it_lft_1; [ | rewrite repeat_length; auto ].
+             rewrite iter_lft_it_lft_0; auto.
+             generalize (n - S n1); clear n Hn H1; intros n.
+             destruct (list_decomp_1 m) with (n := S n)
+               as [ [ (l & z & m' & -> & H2) | H1 ] | H1 ]; try lia.
+             ** rewrite iter_lft_it_both_0; auto.
+                rewrite iter_lft_it_lft_1; auto.
+             ** rewrite iter_lft_it_both_1; auto.
+                rewrite iter_lft_it_lft_2; auto.
+             ** rewrite iter_lft_it_both_2; auto.
+                rewrite iter_lft_it_lft_3; auto.
+        - rewrite H1; generalize (length ll); clear ll H1.
+          intros n1.
+          destruct n as [ | n ]; try lia.
+          destruct (lt_eq_lt_dec n n1) as [ [ H1 | <- ] | H1 ].
+          ++ replace n1 with (n + (S (n1 - S n))) by lia.
+             rewrite repeat_plus; simpl repeat. 
+             rewrite iter_lft_it_lft_1; [ | rewrite repeat_length; auto ].
+             rewrite iter_lft_it_lft_0; auto.
+          ++ rewrite iter_lft_it_lft_2; [ | rewrite repeat_length; auto ].
+             rewrite iter_lft_it_lft_0'; auto.
+          ++ replace (S n) with (S n1 + (S (n-S n1))) by lia.
+             rewrite <- !iter_plus.
+             rewrite iter_lft_it_lft_2; [ | rewrite repeat_length; auto ].
+             rewrite iter_lft_it_lft_0'; auto.
+             rewrite iter_lft_it_rt_1.
+             rewrite iter_lft_it_one_1; auto.
+    + simpl; destruct n as [ | n ]; try lia.
+      rewrite !iter_lft_it_rt_1; auto.
+    + simpl.
+      destruct (list_decomp_1 ll) with (1 := Hn)
+          as [ [ (l & y & m & -> & H2) | H1 ] | H1 ].
+      - rewrite !iter_lft_it_both_0 with (1 := H2); auto.
+      - rewrite !iter_lft_it_both_1; auto.
+      - rewrite !iter_lft_it_both_2; auto.
+  Qed.
+
+  (* And the second one *)
+
+  Theorem rd_rwr t n c :
+         0 < n
+      -> rd (iter mv_rt n (wr t c))
+       = rd (iter mv_rt n t).
+  Proof.
+  Admitted.
+
+  
+
 
   (* We should be able to compute the normal form of any iter lft ... *)
 
