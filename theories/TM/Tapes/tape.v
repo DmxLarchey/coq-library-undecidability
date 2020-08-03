@@ -122,6 +122,15 @@ Section quotient.
 
   Definition tape_q_eq s t := forall i, tq_rdZ s i = tq_rdZ t i.
 
+  Fact tq_eq_refl t : tape_q_eq t t.
+  Proof. red; auto. Qed.
+
+  Fact tq_eq_sym s t : tape_q_eq s t -> tape_q_eq t s.
+  Proof. red; auto. Qed.
+
+  Fact tq_eq_trans r s t : tape_q_eq r s -> tape_q_eq s t -> tape_q_eq r t.
+  Proof. unfold tape_q_eq; intros H1 H2 ?; rewrite H1; auto. Qed.
+
 End quotient.
 
 Section iterZ.
@@ -612,6 +621,15 @@ Section tapes.
   Proof.
   Admitted.
 
+  Theorem rd_uniq s t :
+        (forall n, rd (iter mv_lft n s) = rd (iter mv_lft n t))
+     -> (forall n, rd (iter mv_rt n s) = rd (iter mv_rt n t))
+     -> s = t.
+  Proof.
+    intros H1 H2.
+    destruct s; destruct t. (* case analysis *)
+  Admitted.
+
   Fixpoint tq_itape (t : tape_q Σ) :=
     match t with
       | tq_empty _  => it_one None
@@ -676,13 +694,23 @@ Section tapes.
       rewrite <- !(proj2 (tq_itape_rd _ _)), H; auto.
   Qed.
 
-  (* This gives us the quotient *)
-
   Fact tq_itape_spec t : tape_q_eq t (itape_tq (tq_itape t)).
   Proof. apply tq_itape_eq; now rewrite itape_tq_spec. Qed.
 
   Check itape_tq_spec.
   Check tq_itape_spec.
+
+  (* This gives us the quotient, it is an infinite and non-discrete quotient *)
+
+  Theorem quotient s t : tape_q_eq s t <-> tq_itape s = tq_itape t.
+  Proof.
+    split.
+    2: apply tq_itape_eq.
+    intros H1.
+    apply rd_uniq; intros n.
+    + rewrite !(proj1 (tq_itape_rd _ _)); auto.
+    + rewrite !(proj2 (tq_itape_rd _ _)); auto.
+  Qed.
 
   (* We should be able to compute the normal form of any iter lft ... *)
 
