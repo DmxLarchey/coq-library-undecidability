@@ -39,6 +39,9 @@ Proof.
     * right; lia.
 Qed.
 
+Reserved Notation "f ↑ n" (at level 1, format "f ↑ n").
+Reserved Notation "x ↟ n" (at level 1, format "x ↟ n").
+
 Section iter.
 
   Variable (X : Type).
@@ -49,13 +52,15 @@ Section iter.
       | S n => x::loop n
     end.
 
-  Fact repeat_plus x n m : repeat x (n+m) = repeat x n ++ repeat x m.
+  Notation "x ↟ n" := (repeat x n).
+
+  Fact repeat_plus x n m : x↟(n+m) = x↟n ++ x↟m.
   Proof. induction n; simpl; f_equal; auto. Qed.
 
-  Fact repeat_S x n : repeat x (S n) = repeat x n ++ x :: nil.
+  Fact repeat_S x n : x↟(S n) = x↟n ++ x :: nil.
   Proof. replace (S n) with (n+1) by lia; now rewrite repeat_plus. Qed.
   
-  Fact repeat_length x n : length (repeat x n) = n.
+  Fact repeat_length x n : length (x↟n) = n.
   Proof. induction n; simpl; lia. Qed.
 
   Variable (f : X -> X).
@@ -80,9 +85,12 @@ Section iter.
 
 End iter.
 
+Notation "f ↑ n" := (@iter _ f n). 
+Notation "x ↟ n" := (@repeat _ x n).
+
 Fact repeat_option_choose {X} (l : list (option X)) :
-           { n : _ & { x : _ & { m | l = repeat None n ++ Some x :: m } } }
-         + { l = repeat None (length l) }. 
+           { n : _ & { x : _ & { m | l = None↟n ++ Some x :: m } } }
+         + { l = None↟(length l) }. 
 Proof.
   induction l as [ | [x|] l IHl ].
   + right; auto.
@@ -100,38 +108,42 @@ Section quotient.
 
   Variable (X : Type).
 
-  Inductive tape_q :=
-    | tq_empty : tape_q
-    | tq_lft : tape_q -> tape_q
-    | tq_rt  : tape_q -> tape_q
-    | tq_wr  : tape_q -> X -> tape_q.
+  Inductive q_tape :=    (* for quotient tape *)
+    | qt_emp : q_tape
+    | qt_lft : q_tape -> q_tape
+    | qt_rt  : q_tape -> q_tape
+    | qt_wr  : q_tape -> X -> q_tape.
 
   (* negative are on the lft of the head *)
 
-  Fixpoint tq_rdZ t i :=
+  Fixpoint qt_rdZ t i :=
     match t with
-      | tq_empty  => None
-      | tq_lft t  => tq_rdZ t (i-1)
-      | tq_rt  t  => tq_rdZ t (i+1)
-      | tq_wr t x => 
-      match i with 
-        | Z0 => Some x
-        | _  => tq_rdZ t i
-      end
+      | qt_emp    => None
+      | qt_lft t  => qt_rdZ t (i-1)
+      | qt_rt  t  => qt_rdZ t (i+1)
+      | qt_wr t x => match i with 
+                       | Z0 => Some x
+                       | _  => qt_rdZ t i
+                     end
     end.
 
-  Definition tape_q_eq s t := forall i, tq_rdZ s i = tq_rdZ t i.
+  Definition qt_eq s t := forall i, qt_rdZ s i = qt_rdZ t i.
 
-  Fact tq_eq_refl t : tape_q_eq t t.
+  Infix "~qt" := qt_eq (at level 70).
+
+  Fact qt_eq_refl t : t ~qt t.
   Proof. red; auto. Qed.
 
-  Fact tq_eq_sym s t : tape_q_eq s t -> tape_q_eq t s.
+  Fact qt_eq_sym s t : s ~qt t -> t ~qt s.
   Proof. red; auto. Qed.
 
-  Fact tq_eq_trans r s t : tape_q_eq r s -> tape_q_eq s t -> tape_q_eq r t.
-  Proof. unfold tape_q_eq; intros H1 H2 ?; rewrite H1; auto. Qed.
+  Fact qt_eq_trans r s t : r ~qt s -> s ~qt t -> r ~qt t.
+  Proof. unfold qt_eq; intros H1 H2 ?; rewrite H1; auto. Qed.
 
 End quotient.
+
+Infix "~qt" := (@qt_eq _) (at level 70).
+Arguments qt_emp {X}.
 
 Section iterZ.
 
@@ -294,17 +306,17 @@ Section tapes.
 
   Unset Elimination Schemes.
 
-  Inductive itape : Type :=
-    | it_one  : option Σ -> itape
-    | it_lft  : Σ -> list (option Σ) -> option Σ -> itape
-    | it_rt   : option Σ -> list (option Σ) -> Σ -> itape
-    | it_both : Σ -> list (option Σ) -> option Σ -> list (option Σ) -> Σ -> itape.
+  Inductive i_tape : Type :=   (* for infinite tape *)
+    | it_one  : option Σ -> i_tape
+    | it_lft  : Σ -> list (option Σ) -> option Σ -> i_tape
+    | it_rt   : option Σ -> list (option Σ) -> Σ -> i_tape
+    | it_both : Σ -> list (option Σ) -> option Σ -> list (option Σ) -> Σ -> i_tape.
 
   Set Elimination Schemes.
 
   (* Moving left *)
 
-  Definition mv_lft (t : itape) :=
+  Definition mv_lft (t : i_tape) :=
     match t with
       | it_one None                     => it_one None                     (*  _ _ [_] _ _ ~~> _ [_] _ _ _ *)
       | it_one (Some a)                 => it_rt None nil a                (*  _ _ [a] _ _ ~~> _ [_] a _ _ *)
@@ -323,7 +335,7 @@ Section tapes.
 
   (* Moving right *)
 
-  Definition mv_rt (t : itape) :=
+  Definition mv_rt (t : i_tape) :=
     match t with
       | it_one None                     => it_one None                     (*  _ _ [_] _ _ ~~> _ _ _ [_] _ *)
       | it_one (Some a)                 => it_lft a nil None               (*  _ _ [a] _ _ ~~> _ _ a [_] _ *)
@@ -340,7 +352,7 @@ Section tapes.
       | it_both a l x (y::r) b          => it_both a (x::l) y r b          (*  a ? [x] y b ~~> a ? x [y] b *)
     end.
 
-  Definition rd (t : itape) :=
+  Definition rd (t : i_tape) :=
     match t with
       | it_one x          => x
       | it_lft _ _ x      => x
@@ -348,7 +360,7 @@ Section tapes.
       | it_both _ _ x _ _ => x
     end.
 
-  Definition wr (t : itape) c :=
+  Definition wr (t : i_tape) c :=
     match t with
       | it_one _          => it_one (Some c)
       | it_lft a l _      => it_lft a l (Some c)
@@ -366,9 +378,9 @@ Section tapes.
 
   Open Scope nat_scope.
 
-  Section itape_ind.
+  Section itape_rect.
 
-    Variable (P : itape -> Type)
+    Variable (P : i_tape -> Type)
              (HP_nil  : P (it_one None))
              (HP_wr : forall c t, P t -> P (wr t c))
              (HP_lft : forall t, P t -> P (mv_lft t))
@@ -414,40 +426,48 @@ Section tapes.
     Theorem itape_rect t : P t.
     Proof. destruct t; auto. Qed.
 
-  End itape_ind.
-
-  Check itape_rect.
+  End itape_rect.
 
   Fact rd_wr t c : rd (wr t c) = Some c.
   Proof. now destruct t as [ [] | ? [ | [] ] [] | [] [ | [] ] ? | ? [] [] [] ? ]. Qed.
 
-  Fact iter_lft_it_rt_0 r b n : iter mv_lft n (it_rt None r b) = it_rt None (repeat None n++r) b.
+  Fact iter_lft_it_rt_0 r b n : mv_lft↑n (it_rt None r b) = it_rt None (None↟n++r) b.
   Proof.
     revert r; induction n as [ | n IHn ]; simpl; auto; intros r.
     rewrite IHn; f_equal.
-    change (None::repeat None n++r) with (repeat None (S n)++r).
+    change (None::None↟n++r) with (None↟(S n)++r).
     rewrite repeat_S, app_ass; auto.
   Qed.
 
-  Fact iter_lft_it_rt_1 x r b n : iter mv_lft (S n) (it_rt x r b) = it_rt None (repeat None n++x::r) b.
+  Fact iter_rt_it_lft_0 a l n : mv_rt↑n (it_lft a l None ) = it_lft a (None↟n++l) None.
   Proof.
-    simpl iter at 1.
-    now rewrite iter_lft_it_rt_0.
+    revert l; induction n as [ | n IHn ]; simpl; auto; intros l.
+    rewrite IHn; f_equal.
+    change (None::repeat None n++l) with (repeat None (S n)++l).
+    rewrite repeat_S, app_ass; auto.
   Qed.
 
-  Fact iter_lft_it_one_0 n : iter mv_lft n (it_one None) = it_one None.
+  Fact iter_lft_it_rt_1 x r b n : mv_lft↑(S n) (it_rt x r b) = it_rt None (None↟n++x::r) b.
+  Proof. simpl iter at 1; now rewrite iter_lft_it_rt_0. Qed.
+
+  Fact iter_rt_it_lft_1 a l x n : mv_rt↑(S n) (it_lft a l x) = it_lft a (None↟n++x::l) None.
+  Proof. simpl iter at 1; now rewrite iter_rt_it_lft_0. Qed.
+
+  Fact iter_lft_it_one_0 n : mv_lft↑n (it_one None) = it_one None.
   Proof. induction n; simpl; f_equal; auto. Qed.
 
-  Fact iter_lft_it_one_1 b n : iter mv_lft (S n) (it_one (Some b)) = it_rt None (repeat None n) b.
-  Proof.
-    simpl iter at 1.
-    now rewrite iter_lft_it_rt_0, <- app_nil_end.
-  Qed.
+  Fact iter_rt_it_one_0 n : mv_rt↑n (it_one None) = it_one None.
+  Proof. induction n; simpl; f_equal; auto. Qed.
+
+  Fact iter_lft_it_one_1 b n : mv_lft↑(S n) (it_one (Some b)) = it_rt None (None↟n) b.
+  Proof. simpl iter at 1; now rewrite iter_lft_it_rt_0, <- app_nil_end. Qed.
+
+  Fact iter_rt_it_one_1 a n : mv_rt↑(S n) (it_one (Some a)) = it_lft a (None↟n) None.
+  Proof. simpl iter at 1; now rewrite iter_rt_it_lft_0, <- app_nil_end. Qed.
 
   Fact iter_lft_it_both_0 a l y m x r b n : 
           S (length l) = n 
-       -> iter mv_lft n (it_both a (l++y::m) x r b)
-        = it_both a m y (rev l++x::r) b.
+       -> mv_lft↑n (it_both a (l++y::m) x r b) = it_both a m y (rev l++x::r) b.
   Proof.
     revert l y m x r; induction n as [ | n IHn ]; intros l y m x r; try discriminate; intros H.
     injection H; clear H; intros H.
@@ -459,10 +479,23 @@ Section tapes.
       simpl rev; rewrite app_ass; auto.
   Qed.
 
+  Fact iter_rt_it_both_0 a l x r y m b n : 
+          S (length r) = n 
+       -> mv_rt↑n (it_both a l x (r++y::m) b) = it_both a (rev r++x::l) y m b.
+  Proof.
+    revert l y m x r; induction n as [ | n IHn ]; intros l y m x r; try discriminate; intros H.
+    injection H; clear H; intros H.
+    destruct r as [ | z r ].
+    + simpl in H; subst n; simpl; auto.
+    + simpl in H.
+      simpl iter.
+      rewrite IHn with (1 := H); f_equal.
+      simpl rev; rewrite app_ass; auto.
+  Qed.
+
   Fact iter_lft_it_both_1 a l x r b n :
          S (length l) = n
-       -> iter mv_lft n (it_both a l x r b)
-        = it_rt (Some a) (rev l++x::r) b.
+       -> mv_lft↑n (it_both a l x r b) = it_rt (Some a) (rev l++x::r) b.
   Proof.
     intros H.
     destruct (list_snoc l) as [ (y & m & ->) | -> ].
@@ -473,21 +506,51 @@ Section tapes.
     + simpl in H; subst n; simpl; auto.
   Qed.
 
+  Fact iter_rt_it_both_1 a l x r b n :
+         S (length r) = n
+       -> mv_rt↑n (it_both a l x r b) = it_lft a (rev r++x::l) (Some b).
+  Proof.
+    intros H.
+    destruct (list_snoc r) as [ (y & m & ->) | -> ].
+    + rewrite app_length in H; simpl in H.
+      replace n with ((S (length m)) + 1) at 1.
+      rewrite <- iter_plus, iter_rt_it_both_0 with (1 := eq_refl).
+      simpl; f_equal; rewrite rev_app_distr, app_ass; auto.
+    + simpl in H; subst n; simpl; auto.
+  Qed.
+
   Fact iter_lft_it_both_2 a l x r b n :
           2+length l <= n
-       -> iter mv_lft n (it_both a l x r b)
-        = it_rt None (repeat None (n - 2 - length l)++Some a::rev l++x::r) b.
+       -> mv_lft↑n (it_both a l x r b)
+        = it_rt None (None↟(n-2-length l)++Some a::rev l++x::r) b.
   Proof.
     intros Hn.
     replace n with (1+length l+(1+(n-2-length l))) by lia.
     rewrite <- iter_plus, iter_lft_it_both_1 with (1 := eq_refl), <- iter_plus.
-    simpl.
-    rewrite iter_lft_it_rt_0; do 3 f_equal; lia.
+    simpl; rewrite iter_lft_it_rt_0; do 3 f_equal; lia.
+  Qed.
+
+  Fact iter_rt_it_both_2 a l x r b n :
+          2+length r <= n
+       -> mv_rt↑n (it_both a l x r b)
+        = it_lft a (None↟(n-2-length r)++Some b::rev r++x::l) None.
+  Proof.
+    intros Hn.
+    replace n with (1+length r+(1+(n-2-length r))) by lia.
+    rewrite <- iter_plus, iter_rt_it_both_1 with (1 := eq_refl), <- iter_plus.
+    simpl; rewrite iter_rt_it_lft_0; do 3 f_equal; lia.
   Qed.
 
   Fact iter_lft_it_lft_0 a x m n : 
-          iter mv_lft (S n) (it_lft a (repeat None n++x::m) None)
-        = it_lft a m x.
+          mv_lft↑(S n) (it_lft a (None↟n++x::m) None) = it_lft a m x.
+  Proof.
+    induction n as [ | n IHn ].
+    + destruct x; auto.
+    + rewrite iter_succ; auto.
+  Qed.
+
+  Fact iter_rt_it_rt_0 b x m n : 
+          mv_rt↑(S n) (it_rt None (None↟n++x::m) b) = it_rt x m b.
   Proof.
     induction n as [ | n IHn ].
     + destruct x; auto.
@@ -495,8 +558,15 @@ Section tapes.
   Qed.
 
   Fact iter_lft_it_lft_0' a n : 
-          iter mv_lft (S n) (it_lft a (repeat None n) None)
-        = it_one (Some a).
+          mv_lft↑(S n) (it_lft a (None↟n) None) = it_one (Some a).
+  Proof.
+    induction n as [ | n IHn ].
+    + simpl; auto.
+    + rewrite iter_succ; auto.
+  Qed.
+
+  Fact iter_rt_it_rt_0' b n : 
+         mv_rt↑(S n) (it_rt None (None↟n) b) = it_one (Some b).
   Proof.
     induction n as [ | n IHn ].
     + simpl; auto.
@@ -505,8 +575,7 @@ Section tapes.
 
   Fact iter_lft_it_lft_1 a l x m b n : 
           S (length l) = n 
-       -> iter mv_lft n (it_lft a (l++x::m) (Some b))
-        = it_both a m x (rev l) b.
+       -> mv_lft↑n (it_lft a (l++x::m) (Some b)) = it_both a m x (rev l) b.
   Proof.
     intros <-.
     simpl iter.
@@ -517,10 +586,21 @@ Section tapes.
       rewrite <- iter_lft_it_both_0 with (r := nil) (1 := eq_refl); auto.
   Qed.
 
+  Fact iter_rt_it_rt_1 a r x m b n : 
+          S (length r) = n 
+       -> mv_rt↑n (it_rt (Some a) (r++x::m) b) = it_both a (rev r) x m b.
+  Proof.
+    intros <-.
+    simpl iter.
+    destruct r as [ | y r ].
+    + simpl; auto.
+    + match goal with |- _↑_ ?e = _ => change e with (it_both a nil y (r++x::m) b) end.
+      apply iter_rt_it_both_0; auto.
+  Qed.
+
   Fact iter_lft_it_lft_2 a l b n : 
           S (length l) = n 
-       -> iter mv_lft n (it_lft a l (Some b))
-        = it_rt (Some a) (rev l) b.
+       -> mv_lft↑n (it_lft a l (Some b)) = it_rt (Some a) (rev l) b.
   Proof.
     intros H.
     destruct (list_snoc l) as [ (y & m & ->) | -> ].
@@ -531,10 +611,22 @@ Section tapes.
     + simpl in H; subst n; simpl; auto.
   Qed.
 
+  Fact iter_rt_it_rt_2 a r b n : 
+          S (length r) = n 
+       -> mv_rt↑n (it_rt (Some a) r b) = it_lft a (rev r) (Some b).
+  Proof.
+    intros H.
+    destruct (list_snoc r) as [ (y & m & ->) | -> ].
+    + rewrite app_length in H; simpl in H.
+      replace n with ((S (length m)) + 1) at 1.
+      rewrite <- iter_plus, iter_rt_it_rt_1 with (1 := eq_refl).
+      simpl; f_equal; rewrite rev_app_distr; auto.
+    + simpl in H; subst n; simpl; auto.
+  Qed.
+
   Fact iter_lft_it_lft_3 a l b n : 
           2+length l <= n 
-       -> iter mv_lft n (it_lft a l (Some b))
-        = it_rt None (repeat None (n - 2 - length l)++Some a::rev l) b.
+       -> mv_lft↑n (it_lft a l (Some b)) = it_rt None (None↟(n-2-length l)++Some a::rev l) b.
   Proof.
     intros Hn.
     replace n with (1+length l+(1+(n-2-length l))) by lia.
@@ -542,12 +634,19 @@ Section tapes.
     simpl; rewrite iter_lft_it_rt_0; do 3 f_equal; lia.
   Qed.
 
+  Fact iter_rt_it_rt_3 a r b n : 
+          2+length r <= n 
+       -> mv_rt↑n (it_rt (Some a) r b) = it_lft a (None↟(n-2-length r)++Some b::rev r) None.
+  Proof.
+    intros Hn.
+    replace n with (1+length r+(1+(n-2-length r))) by lia.
+    rewrite <- iter_plus, iter_rt_it_rt_2 with (1 := eq_refl), <- iter_plus.
+    simpl; rewrite iter_rt_it_lft_0; do 3 f_equal; lia.
+  Qed.
+
   (* These are the two essential results *)
 
-  Theorem rd_lwr t n c : 
-         0 < n 
-      -> rd (iter mv_lft n (wr t c)) 
-       = rd (iter mv_lft n t).
+  Theorem rd_lwr t n c : 0 < n -> rd (mv_lft↑n (wr t c)) = rd (mv_lft↑n t).
   Proof.
     intros Hn.
     destruct t as [ x | a ll x | x ll b | a ll x r b ].
@@ -614,12 +713,70 @@ Section tapes.
 
   (* And the second one *)
 
-  Theorem rd_rwr t n c :
-         0 < n
-      -> rd (iter mv_rt n (wr t c))
-       = rd (iter mv_rt n t).
+  Theorem rd_rwr t n c : 0 < n -> rd (mv_rt↑n (wr t c)) = rd (mv_rt↑n t).
   Proof.
-  Admitted.
+    intros Hn.
+    destruct t as [ x | a ll x | x ll b | a l x rr b ].
+    + simpl wr; destruct n as [ | n ]; try lia.
+      rewrite iter_rt_it_one_1.
+      destruct x as [ x | ].
+      * rewrite iter_rt_it_one_1; auto.
+      * rewrite iter_rt_it_one_0; auto.
+    + simpl; destruct n as [ | n ]; try lia.
+      rewrite !iter_rt_it_lft_1; auto.
+    + simpl.
+      destruct x as [ x | ].
+      * destruct (list_decomp_1 ll) with (1 := Hn)
+          as [ [ (r & y & m & -> & H2) | H1 ] | H1 ].
+        - rewrite !iter_rt_it_rt_1 with (1 := H2); auto.
+        - rewrite !iter_rt_it_rt_2; auto.
+        - rewrite !iter_rt_it_rt_3; auto.
+      * destruct (repeat_option_choose ll) as [ (n1 & y & m & ->) | H1 ].
+        - destruct n as [ | n ]; try lia.
+          destruct (lt_eq_lt_dec n n1) as [ [ H1 | <- ] | H1 ].
+          ++ replace n1 with (n + (S (n1 - S n))) by lia.
+             rewrite repeat_plus; simpl repeat. 
+             rewrite app_ass; simpl app.
+             rewrite iter_rt_it_rt_1; [ | rewrite repeat_length; auto ].
+             rewrite iter_rt_it_rt_0; auto.
+          ++ rewrite iter_rt_it_rt_1; [ | rewrite repeat_length; auto ].
+             rewrite iter_rt_it_rt_0; auto.
+          ++ replace (S n) with (S n1 + (S (n-S n1))) by lia.
+             rewrite <- !iter_plus.
+             rewrite iter_rt_it_rt_1; [ | rewrite repeat_length; auto ].
+             rewrite iter_rt_it_rt_0; auto.
+             generalize (n - S n1); clear n Hn H1; intros n.
+             destruct (list_decomp_1 m) with (n := S n)
+               as [ [ (r & z & m' & -> & H2) | H1 ] | H1 ]; try lia.
+             ** rewrite iter_rt_it_both_0; auto.
+                rewrite iter_rt_it_rt_1; auto.
+             ** rewrite iter_rt_it_both_1; auto.
+                rewrite iter_rt_it_rt_2; auto.
+             ** rewrite iter_rt_it_both_2; auto.
+                rewrite iter_rt_it_rt_3; auto.
+        - rewrite H1; generalize (length ll); clear ll H1.
+          intros n1.
+          destruct n as [ | n ]; try lia.
+          destruct (lt_eq_lt_dec n n1) as [ [ H1 | <- ] | H1 ].
+          ++ replace n1 with (n + (S (n1 - S n))) by lia.
+             rewrite repeat_plus; simpl repeat. 
+             rewrite iter_rt_it_rt_1; [ | rewrite repeat_length; auto ].
+             rewrite iter_rt_it_rt_0; auto.
+          ++ rewrite iter_rt_it_rt_2; [ | rewrite repeat_length; auto ].
+             rewrite iter_rt_it_rt_0'; auto.
+          ++ replace (S n) with (S n1 + (S (n-S n1))) by lia.
+             rewrite <- !iter_plus.
+             rewrite iter_rt_it_rt_2; [ | rewrite repeat_length; auto ].
+             rewrite iter_rt_it_rt_0'; auto.
+             rewrite iter_rt_it_lft_1.
+             rewrite iter_rt_it_one_1; auto.
+    + simpl.
+      destruct (list_decomp_1 rr) with (1 := Hn)
+          as [ [ (r & y & m & -> & H2) | H1 ] | H1 ].
+      - rewrite !iter_rt_it_both_0 with (1 := H2); auto.
+      - rewrite !iter_rt_it_both_1; auto.
+      - rewrite !iter_rt_it_both_2; auto.
+  Qed.
 
   Theorem rd_uniq s t :
         (forall n, rd (iter mv_lft n s) = rd (iter mv_lft n t))
