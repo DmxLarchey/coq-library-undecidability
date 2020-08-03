@@ -80,7 +80,7 @@ Section iter.
 
 End iter.
 
-Fact list_decomp_2 {X} (l : list (option X)) :
+Fact repeat_option_choose {X} (l : list (option X)) :
            { n : _ & { x : _ & { m | l = repeat None n ++ Some x :: m } } }
          + { l = repeat None (length l) }. 
 Proof.
@@ -95,6 +95,34 @@ Qed.
 Open Scope Z_scope.
 
 Print Z.
+
+Section quotient.
+
+  Variable (X : Type).
+
+  Inductive tape_q :=
+    | tq_empty : tape_q
+    | tq_lft : tape_q -> tape_q
+    | tq_rt  : tape_q -> tape_q
+    | tq_wr  : tape_q -> X -> tape_q.
+
+  (* negative are on the lft of the head *)
+
+  Fixpoint tq_rdZ t i :=
+    match t with
+      | tq_empty  => None
+      | tq_lft t  => tq_rdZ t (i-1)
+      | tq_rt  t  => tq_rdZ t (i+1)
+      | tq_wr t x => 
+      match i with 
+        | Z0 => Some x
+        | _  => tq_rdZ t i
+      end
+    end.
+
+  Definition tape_q_eq s t := forall i, tq_rdZ s i = tq_rdZ t i.
+
+End quotient.
 
 Section iterZ.
 
@@ -331,7 +359,7 @@ Section tapes.
 
   Section itape_ind.
 
-    Variable (P : itape -> Prop)
+    Variable (P : itape -> Type)
              (HP_nil  : P (it_one None))
              (HP_wr : forall c t, P t -> P (wr t c))
              (HP_lft : forall t, P t -> P (mv_lft t))
@@ -374,12 +402,12 @@ Section tapes.
 
     (* Any itape can be build with the nil, wr, lft and rt constructors *)
 
-    Theorem itape_ind t : P t.
+    Theorem itape_rect t : P t.
     Proof. destruct t; auto. Qed.
 
   End itape_ind.
 
-  Check itape_ind.
+  Check itape_rect.
 
   Fact rd_wr t c : rd (wr t c) = Some c.
   Proof. now destruct t as [ [] | ? [ | [] ] [] | [] [ | [] ] ? | ? [] [] [] ? ]. Qed.
@@ -526,7 +554,7 @@ Section tapes.
         - rewrite !iter_lft_it_lft_1 with (1 := H2); auto.
         - rewrite !iter_lft_it_lft_2; auto.
         - rewrite !iter_lft_it_lft_3; auto.
-      * destruct (list_decomp_2 ll) as [ (n1 & y & m & ->) | H1 ].
+      * destruct (repeat_option_choose ll) as [ (n1 & y & m & ->) | H1 ].
         - destruct n as [ | n ]; try lia.
           destruct (lt_eq_lt_dec n n1) as [ [ H1 | <- ] | H1 ].
           ++ replace n1 with (n + (S (n1 - S n))) by lia.
@@ -584,8 +612,77 @@ Section tapes.
   Proof.
   Admitted.
 
-  
+  Fixpoint tq_itape (t : tape_q Σ) :=
+    match t with
+      | tq_empty _  => it_one None
+      | tq_lft t    => mv_lft (tq_itape t)
+      | tq_rt  t    => mv_rt (tq_itape t)
+      | tq_wr t x   => wr (tq_itape t) x
+    end.
 
+  Definition itape_tq_full (t : itape) : { s | tq_itape s = t }.
+  Proof.
+    induction t as [ | x t (s & Hs) | t (s & Hs) | t (s & Hs) ].
+    + exists (tq_empty _); auto.
+    + exists (tq_wr s x); subst; auto.
+    + exists (tq_lft s); subst; auto.
+    + exists (tq_rt s); subst; auto.
+  Qed.
+
+  Definition itape_tq t := proj1_sig (itape_tq_full t).
+  
+  Fact itape_tq_spec t : tq_itape (itape_tq t) = t.
+  Proof. apply (proj2_sig (itape_tq_full t)). Qed.
+
+  Fact tq_itape_rd t n : rd (iter mv_lft n (tq_itape t)) = tq_rdZ t (-Z.of_nat n)
+                      /\ rd (iter mv_rt n (tq_itape t)) = tq_rdZ t (Z.of_nat n).
+  Proof.
+    revert n.
+    induction t as [ | t IHt | t IHt | t IHt x ]; intros n.
+    + rewrite iter_lft_it_one_0; split; auto.
+      admit.
+    + generalize (proj1 (IHt (S n))); simpl; intros ->; split.
+      * f_equal; lia.
+      * destruct n as [ | n ]; simpl iter.
+        - apply (IHt 1).
+        - rewrite mv_rt_lft. 
+          generalize (proj2 (IHt n)); intros ->; f_equal; lia.
+    + split.
+      * destruct n as [ | n ]; simpl iter.
+        - apply (IHt 1).
+        - rewrite mv_lft_rt.
+          generalize (proj1 (IHt n)); intros ->. 
+          Opaque Z.of_nat.
+          cbn; f_equal; lia.
+      * generalize (proj2 (IHt (S n))); simpl; intros ->; f_equal; lia.
+    + destruct n as [ | n ].
+      * simpl iter; simpl tq_itape; rewrite rd_wr.
+        Transparent Z.of_nat. 
+        simpl; auto.
+      * simpl tq_itape.
+        rewrite rd_lwr; try lia.
+        rewrite rd_rwr; try lia.
+        apply IHt.
+  Admitted.
+
+  Fact tq_itape_eq s t : tq_itape s = tq_itape t -> tape_q_eq s t.
+  Proof.
+    intros H i.
+    destruct (Z.le_ge_cases i 0) as [ H1 | H1 ].
+    + destruct (Z_of_nat_complete (-i)) as (n & Hn); try lia.
+      replace i with (- Z.of_nat n) by lia.
+      rewrite <- !(proj1 (tq_itape_rd _ _)), H; auto.
+    + destruct (Z_of_nat_complete i) as (n & ->); auto.
+      rewrite <- !(proj2 (tq_itape_rd _ _)), H; auto.
+  Qed.
+
+  (* This gives us the quotient *)
+
+  Fact tq_itape_spec t : tape_q_eq t (itape_tq (tq_itape t)).
+  Proof. apply tq_itape_eq; now rewrite itape_tq_spec. Qed.
+
+  Check itape_tq_spec.
+  Check tq_itape_spec.
 
   (* We should be able to compute the normal form of any iter lft ... *)
 
