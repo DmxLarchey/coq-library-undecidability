@@ -116,6 +116,8 @@ Proof.
     * right; simpl; rewrite repeat_length; auto.
 Qed.
 
+Reserved Notation "x '~i' y" (at level 70, no associativity).
+
 Section quotient_tapes.
 
   Variable (X : Type).
@@ -126,35 +128,184 @@ Section quotient_tapes.
     | qt_rt  : q_tape -> q_tape
     | qt_wr  : q_tape -> X -> q_tape.
 
+  Notation E := qt_emp.
+  Notation L := qt_lft.
+  Notation R := qt_rt.
+  Notation W := qt_wr.
+
+  (* Syntactic equivalance *) 
+
+  Inductive qt_syn_eq : q_tape -> q_tape -> Prop :=
+    | in_qt_seq_0 : E ~i E
+    | in_qt_seq_1 s t : s ~i t -> L s ~i L t
+    | in_qt_seq_2 s t : s ~i t -> R s ~i R t
+    | in_qt_seq_3 x s t : s ~i t -> W s x ~i W t x
+    | in_qt_seq_4 s t : s ~i t -> t ~i s
+    | in_qt_seq_5 r s t : r ~i s -> s ~i t -> r ~i t
+    | in_qt_seq_6 t : L (R t) ~i t
+    | in_qt_seq_7 t : R (L t) ~i t
+    | in_qt_seq_8 x y t : W (W t y) x ~i W t x
+    | in_qt_seq_9 n x y t : W (L↑(S n) (W (R↑(S n) t) x)) y
+                         ~i L↑(S n) (W (R↑(S n) (W t y)) x)
+    | in_qt_seq_a n x y t : W (R↑(S n) (W (L↑(S n) t) x)) y
+                         ~i R↑(S n) (W (L↑(S n) (W t y)) x)
+    | in_qt_seq_b : L E ~i E
+    | in_qt_seq_c : R E ~i E
+  where "x ~i y" := (qt_syn_eq x y).
+
+  Fact qt_seq_refl t : t ~i t.
+  Proof. induction t; constructor; auto. Qed.
+
+  Definition qt_seq_sym := in_qt_seq_4.
+  Definition qt_seq_trans := in_qt_seq_5.
+
   (* negative are on the lft of the head *)
 
   Fixpoint qt_rdZ t i :=
     match t with
-      | qt_emp    => None
-      | qt_lft t  => qt_rdZ t (i-1)%Z
-      | qt_rt  t  => qt_rdZ t (i+1)%Z
-      | qt_wr t x => match i with 
+      | E     => None
+      | L t   => qt_rdZ t (i-1)%Z
+      | R t   => qt_rdZ t (i+1)%Z
+      | W t x => match i with 
                        | Z0 => Some x
                        | _  => qt_rdZ t i
                      end
     end.
 
-  Definition qt_eq s t := forall i, qt_rdZ s i = qt_rdZ t i.
+  Fact qt_rdZ_wr_not0 t x i : i <> 0%Z -> qt_rdZ (W t x) i = qt_rdZ t i.
+  Proof. destruct i; simpl; auto; intros []; auto. Qed.
 
-  Infix "~qt" := qt_eq (at level 70).
+  Fact qt_rqZ_Ln n t i : qt_rdZ (L↑n t) i = qt_rdZ t (i - Z.of_nat n)%Z.
+  Proof.
+    revert t; induction n as [ | n IHn ]; intros t; simpl.
+    + f_equal; lia.
+    + rewrite IHn; simpl; f_equal; lia.
+  Qed.
 
-  Fact qt_eq_refl t : t ~qt t.
+  Fact qt_rqZ_Rn n t i : qt_rdZ (R↑n t) i = qt_rdZ t (i + Z.of_nat n)%Z.
+  Proof.
+    revert t; induction n as [ | n IHn ]; intros t; simpl.
+    + f_equal; lia.
+    + rewrite IHn; simpl; f_equal; lia.
+  Qed.
+
+  Definition qt_sem_eq s t := forall i, qt_rdZ s i = qt_rdZ t i.
+
+  Infix "~qt" := qt_sem_eq (at level 70).
+
+  Fact qt_sem_eq_refl t : t ~qt t.
   Proof. red; auto. Qed.
 
-  Fact qt_eq_sym s t : s ~qt t -> t ~qt s.
+  Fact qt_sem_eq_sym s t : s ~qt t -> t ~qt s.
   Proof. red; auto. Qed.
 
-  Fact qt_eq_trans r s t : r ~qt s -> s ~qt t -> r ~qt t.
-  Proof. unfold qt_eq; intros H1 H2 ?; rewrite H1; auto. Qed.
+  Fact qt_sem_eq_trans r s t : r ~qt s -> s ~qt t -> r ~qt t.
+  Proof. unfold qt_sem_eq; intros H1 H2 ?; rewrite H1; auto. Qed.
+
+  Theorem qt_syn_sem_eq s t : s ~i t -> s ~qt t.
+  Proof.
+    induction 1 as 
+      [ | | | | | r s t H1 IH1 H2 IH2 | | | | n x y t | n x y t | | ]; try firstorder.
+    + intros []; simpl; auto.
+    + red in IH1; intro; rewrite IH1; auto.
+    + intro; simpl; f_equal; lia.
+    + intro; simpl; f_equal; lia.
+    + intros []; simpl; auto.
+    + intros []; rewrite qt_rqZ_Ln.
+      * rewrite qt_rdZ_wr_not0 with (i := (0 - _)%Z); try lia.
+        rewrite qt_rqZ_Rn.
+        replace (0-Z.of_nat (S n)+Z.of_nat (S n))%Z with 0%Z by lia.
+        simpl; auto.
+      * destruct (Z.eq_dec (Z.pos p) (Z.of_nat (S n))) as [ H | H ].
+        - replace (Z.pos p - Z.of_nat (S n))%Z with 0%Z by lia.
+          rewrite qt_rdZ_wr_not0; try lia.
+          rewrite qt_rqZ_Ln.
+          simpl qt_rdZ at 2.
+          replace (Z.pos p - Z.of_nat (S n))%Z with 0%Z by lia; auto.
+        - repeat (rewrite qt_rdZ_wr_not0; try lia).
+          rewrite qt_rqZ_Ln, qt_rqZ_Rn.
+          repeat (rewrite qt_rdZ_wr_not0; try lia).
+          rewrite qt_rqZ_Rn; auto.
+      * repeat (rewrite qt_rdZ_wr_not0; try lia).
+        rewrite qt_rqZ_Ln, qt_rqZ_Rn.
+        repeat (rewrite qt_rdZ_wr_not0; try lia).
+        rewrite qt_rqZ_Rn; auto.
+    + intros []; rewrite qt_rqZ_Rn.
+      * rewrite qt_rdZ_wr_not0 with (i := (0 + _)%Z); try lia.
+        rewrite qt_rqZ_Ln.
+        replace (0+Z.of_nat (S n)-Z.of_nat (S n))%Z with 0%Z by lia.
+        simpl; auto.
+      * repeat (rewrite qt_rdZ_wr_not0; try lia).
+        rewrite qt_rqZ_Ln, qt_rqZ_Rn.
+        repeat (rewrite qt_rdZ_wr_not0; try lia).
+        rewrite qt_rqZ_Ln; auto.
+      * destruct (Z.eq_dec (- Z.neg p)%Z (Z.of_nat (S n))) as [ H | H ].
+        - replace (Z.neg p + Z.of_nat (S n))%Z with 0%Z by lia.
+          rewrite qt_rdZ_wr_not0; try lia.
+          rewrite qt_rqZ_Rn.
+          simpl qt_rdZ at 2.
+          replace (Z.neg p + Z.of_nat (S n))%Z with 0%Z by lia; auto.
+        - repeat (rewrite qt_rdZ_wr_not0; try lia).
+          rewrite qt_rqZ_Ln, qt_rqZ_Rn.
+          repeat (rewrite qt_rdZ_wr_not0; try lia).
+          rewrite qt_rqZ_Ln; auto.
+  Qed.
+
+  Fact E_eq t : E ~qt t -> E ~i t.
+  Proof.
+    induction t as [ | t IHt | t IHt | t y ].
+    + constructor.
+    + intros H.
+      apply qt_seq_trans with (L E).
+      - apply qt_seq_sym, in_qt_seq_b.
+      - apply in_qt_seq_1, IHt.
+        intros i.
+        specialize (H (i+1)%Z).
+        simpl in H |- *.
+        rewrite  H; f_equal; lia.
+    + intros H.
+      apply qt_seq_trans with (R E).
+      - apply qt_seq_sym, in_qt_seq_c.
+      - apply in_qt_seq_2, IHt.
+        intros i.
+        specialize (H (i-1)%Z).
+        simpl in H |- *.
+        rewrite  H; f_equal; lia.
+    + intros H; specialize (H 0%Z); now simpl in H.
+  Qed.
+
+  Theorem qt_sem_syn_eq s t : s ~qt t -> s ~i t.
+  Proof.
+    revert t; induction s as [ | s IHs | s IHs | s IHs x ]; intros t.
+    + apply E_eq.
+    + intros H1. 
+      assert (s ~i R t) as H2.
+      { apply IHs.
+        intros i; simpl.
+        rewrite <- H1; simpl; f_equal; lia. }
+      apply in_qt_seq_1 in H2.
+      apply qt_seq_trans with (1 := H2).
+      apply in_qt_seq_6.
+    + intros H1. 
+      assert (s ~i L t) as H2.
+      { apply IHs.
+        intros i; simpl.
+        rewrite <- H1; simpl; f_equal; lia. }
+      apply in_qt_seq_2 in H2.
+      apply qt_seq_trans with (1 := H2).
+      apply in_qt_seq_7.
+    + intros H1.
+      
+      admit.
+  Admitted.
+
+  (* Showing the converse if more difficult ? *)
 
 End quotient_tapes.
 
-Infix "~qt" := (@qt_eq _) (at level 70).
+
+Infix "~it" := (@qt_syn_eq _) (at level 70).
+Infix "~qt" := (@qt_sem_eq _) (at level 70).
 Arguments qt_emp {X}.
 
 Notation "⌊ l ⌋" := (length l) (at level 1, format "⌊ l ⌋").
@@ -914,6 +1065,13 @@ Section infinite_tapes.
 
   Corollary qt_it_spec t : t ~qt it_qt (qt_it t).
   Proof. apply it_qt_repr; now rewrite it_qt_class. Qed.
+
+  Theorem qt_it_equiv s t : qt_it s = qt_it t -> s ~it t.
+  Proof.
+    
+    
+    induction 1.
+
 
 End infinite_tapes.
 
