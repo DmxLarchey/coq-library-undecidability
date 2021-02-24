@@ -1,7 +1,7 @@
 # Synthetic Undecidability of IMSELL via FRACTRAN
 
 This repository is a tailored version of the [Coq Library of Undecidability Proofs](https://github.com/uds-psl/coq-library-undecidability)
-(git branch `coq-8.12`) designed to provided a faster path towards the review of the code of the FSCD'21 submission 
+(git branch `coq-8.12`) designed to provide a faster path towards code review of the FSCD'21 submission 
 [_Synthetic Undecidability of MSELL via FRACTRAN mechanised in Coq_](https://www.loria.fr/~larchey/papers/fscd21.pdf)
 by Dominique Larchey-Wendling.
 
@@ -12,8 +12,8 @@ machines to IMSELL is much smaller and should require less than 3 minutes to com
 
 ## Requirements and installation
 
-We recommend that you use [`opam 2`](https://opam.ocaml.org/) on your system to follow the instructions here.
-The script commands below correspond to the BASH shell scripting language.
+We recommend that you use [`opam 2`](https://opam.ocaml.org/) on your system to follow the instructions below.
+The given script commands correspond to the BASH shell scripting language (`/bin/bash`).
 
 ### Upload the project
 
@@ -29,7 +29,7 @@ cd coq-library-undecidability-fscd21
 
 You need Coq `8.12` built on `OCAML >= 4.07.1`, the [Smpl](https://github.com/uds-psl/smpl) package, the [Equations](https://mattam82.github.io/Coq-Equations/) package, and the [MetaCoq](https://metacoq.github.io/metacoq/) package for Coq. In addition, to review to Coq code, you might want to install CoqIDE `8.12`.
 
-Notice that installing Coq, Equations and MetaCoq takes some time, possibly ten minutes.
+Notice that installing Coq, Equations and MetaCoq from scratch takes some time, possibly ten minutes of compilation.
 
 We recommand that you work in the `coq-library-undecidability-fscd21` directory created in the 
 previous section.
@@ -37,14 +37,14 @@ previous section.
 If you are using `opam 2` you can use the following commands to install the dependencies on a new switch:
 
 ```
-opam switch create coq-library-undecidability 4.07.1+flambda
+opam switch create coq-library-undecidability 4.07.1+flambda --jobs=4
 eval $(opam env)
 opam repo add coq-released https://coq.inria.fr/opam/released
 opam install . --deps-only --jobs=4
 ```
 
-Notice that the command `opam install . --deps-only` above has to be run from the
-project directory `coq-library-undecidability-fscd21` because it contains the
+Notice that the command `opam install . --deps-only --jobs=4` above has to be run from the
+project directory `coq-library-undecidability-fscd21` because there belongs the
 `opam` file that contains the list of required dependencies.
 
 If you want to use CoqIDE to review the code, you can install it with e.g.
@@ -56,20 +56,21 @@ eval $(opam env)
 
 ## Compilation of the IMSELL undecidability result
 
-_Do not type `make all`_ if you do not intend to compile the whole library. This takes a lot of time.
+**Do not type `make all`** if you do not intend to compile the whole library. This takes a lot of time.
 
-Instead we recommend that you type:
+Instead we recommend that you type which will only compile the files involved in the
+reduction chain from Turing machines halting to IMSELL:
 
 ```
 cd theories
 make -j 4 ILL/IMSELL_undec.vo
 ```
 
-On a recent computer, this compilation phase should take less than 5 minutes.
+On a recent computer, this compilation phase should take less than 3 minutes.
 
 ## Code review
 
-_After compilation_, you can review the Coq code with your favorite IDE. 
+**After compilation**, you can review the Coq code with your favorite IDE. 
 Below are direct links to code relevant to the IMSELL undecidability result:
 
 - `FRACTRAN`: [`FRACTRAN.v`](theories/FRACTRAN/FRACTRAN.v), 
