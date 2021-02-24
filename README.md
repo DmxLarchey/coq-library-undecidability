@@ -60,7 +60,8 @@ eval $(opam env)
 
 **Do not type `make all`** if you do not intend to compile the whole library. This takes a lot of time.
 
-Instead we recommend that you type which will only compile the files involved in the
+Instead we recommend that you enter the following commands
+which will only compile the files involved in the
 reduction chain from Turing machines halting to IMSELL:
 
 ```
@@ -74,7 +75,7 @@ On a recent computer, this compilation phase should take less than 3 minutes.
 
 **After compilation**, you can review the Coq code with your favorite IDE. 
 Below are direct links to code relevant to the IMSELL undecidability result.
-These links can also be found in the `PDF` file of the submission:
+These links can also be found in the [`PDF` file of the submission](https://www.loria.fr/~larchey/papers/fscd21.pdf):
 
 - `FRACTRAN`: [`FRACTRAN.v`](theories/FRACTRAN/FRACTRAN.v), 
 [`fractran_utils.v`](theories/FRACTRAN/FRACTRAN/fractran_utils.v), 
