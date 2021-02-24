@@ -1,4 +1,4 @@
-# Synthetic Undecidability of IMSELL via FRACTRAN mechanised in Coq
+# Synthetic Undecidability of IMSELL via FRACTRAN
 
 This repository is a tailored version of the [Coq Library of Undecidability Proofs](https://github.com/uds-psl/coq-library-undecidability)
 (git branch `coq-8.12`) designed to provided a faster path towards the review of the code of the FSCD'21 submission 
