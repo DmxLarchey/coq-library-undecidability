@@ -15,7 +15,7 @@ machines to IMSELL is much smaller and should require less than 3 minutes to com
 We recommend that you use [Opam 2](https://opam.ocaml.org/) on your system to follow the instructions below.
 The given script commands correspond to the BASH shell scripting language (`/bin/bash`).
 
-### Upload the project
+### [Upload the project](archive/fscd21.zip)
 
 We advise you to create a temporary directory to work in it. Then, use the following commands
 from that directory
@@ -28,7 +28,7 @@ cd coq-library-undecidability-fscd21
 
 ### Coq 8.12 requirements
 
-You need [Coq](https://coq.inria.fr/) `8.12` built on `OCAML >= 4.07.1`, the [Smpl](https://github.com/uds-psl/smpl) package, the [Equations](https://mattam82.github.io/Coq-Equations/) package, and the [MetaCoq](https://metacoq.github.io/metacoq/) package for Coq. In addition, to review to Coq code, you might want to install CoqIDE `8.12`.
+You need [Coq](https://coq.inria.fr/) `8.12` built on [OCaml](https://ocaml.org/) `>= 4.07.1`, the [Smpl](https://github.com/uds-psl/smpl) package, the [Equations](https://mattam82.github.io/Coq-Equations/) package, and the [MetaCoq](https://metacoq.github.io/metacoq/) package for Coq. In addition, to review to Coq code, you might want to install CoqIDE `8.12`.
 
 Notice that installing Coq, Equations and MetaCoq from scratch takes some time, possibly more than ten minutes of compilation. **Do not do it over Networked File Systems, it
 is horribly slow**.
