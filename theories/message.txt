@@ -1,0 +1,95 @@
+I profit from this discussion about `TM` and `SBTM` to come back to some previous
+exchanges that we had about the notion of (binary) tape. I would like to have 
+your feeling about the following issues.
+
+From the point of view of a Turing machine, a tape is an abstract data type accessible through 
+an interface:
+- `RD : tape -> bool`: read the ymbol under the head, get a Boolean value (and branch accordingly);
+- `MV : dir -> tape -> tape`: the head one step to the left or one step to the right;
+- `WR : bool -> tape -> tape`: a Boolean value under the head.
+Some axioms should hold such as `RD (WR b t) = b` or `MV lft (MV rt t) ~ t`, etc 
+
+Let me fix some notations:
+- for a list of moves `lm = [d₁;...;dₙ]`, I write `MV l t := MV d₁  (... (MV dₙ t)...)` for applying those 
+  moves in sequence to `t`;
+- two tapes are _bisimilar_ denoted `t₁ ~ t₂` when `RD (MV l t₁) = RD (MV l t₂)` for any list of moves `l`; 
+- an _empty tape_ is a tape `t` for which `RD (MV l t) = false` for any list of moves `l`;
+- a tape is _finite_ if it can be erased: after a finite sequence of `MV` and `WR false` operations, it
+becomes an empty tape.
+
+Notice that bisimilarity as an _heterogenous_ relation: you can compare two tapes that have different
+actual implementations.
+It should be clear that whenever two tapes are bisimilar, any Turing machine will perform the
+same transitions on these two tapes: they cannot be distinguished by Turing machines.
+
+In the previous discussion, may be I was not very clear, but what I wanted
+to state is that wrt. the termination problem (on say the empty tape, or on a finite tape), 
+the actual implementation of this `tape` data type does not matter. However, it matters 
+for other problems.
+
+I will distinguish 3 implementations here:
+1. the first one is the `tape` as implemented in `STBM.v`, ie a finite but ever extending
+  combination of left list/head/right list. Notice that there is Coq computable size for
+  these tapes. They are finite in a strong sense;
+2. the second is `tape := Z -> bool`, the ones which were used when I was told computability theory
+   (as a student). These are not finite. I think this choice poses big questions from a constructive 
+   point of view;
+3. the third is `tape := { s : Z -> bool | ∃n∀x, s x = false \/ |x| < n }`, ie a tape
+   of type (2) but (weakly) bounded.
+   Notice that these tapes do not have a computable size and they are finite in a weaker sense.
+   
+Consider a machine which searches for `false` rightwards on the tape, i.e. if reading the head gives
+`true`, it moves right and starts over, otherwise it stops. This machine will stop on any tape 
+of type (1) or (3). However, it will run forever on `fun _ : Z => true`.
+
+Now an interesting question to ask is that whether a tape contains the Boolean `true`
+(similar to LPO for `nat -> bool`).
+I will formulate the problem using the abstract interface `RD`/`WR`/`MV` so the question 
+applies to any implementation. One way to formulate the question is
+ `P t := ∃l, RD (MV l t) = true`. Clearly `P` distinguishes between the three
+ implementations of tapes. I write `P(i)` for `P` on tapes implemented as (i).
+ - `P(1)` is Coq decidable;
+ - Coq decidability of `P(2)` entails LPO; 
+ - I am not certain about the status of the Coq decidability 
+   of `P(3)` but I think it should not be provable either.
+ 
+Then we could ask the question of whether `P(i)` could be decided by a Turing machine.
+By decided, I mean, a Turing machine that starting on `t`, terminates, and when finished,
+reading the symbol under the head gives the answer to `P t`. I think such a machine
+cannot be build even for `P(1)` which would show that Coq can decide more than 
+Turing machines.
+ 
+First if `M` were to decide `P(3)`, one could use it to Coq decide `P(1)`.
+Let me try to argue why a TM deciding `P(1)` would also decide `P(3)`. Let `t₃ : Z -> bool` 
+be a tape of type (3), ie there a (non-computable) bound on its size. There (weakly) exists
+a finite tape `t₁` which is bisimilar to `t₃`. If `M` runs forever on `t₃`, it should
+also run forever on `t₁`. Hence `M` cannot run forever on `t₃`. 
+ 
+ I do not describe a formal argument here but an intuition.
+ I think it is clear that of `M` decides `P(2)` or `P(3)`, it also decides `P(1)`.
+ I think this converse holds as well: if `M` decides `P(1)` then it decides `P(3)`.
+ 
+ Let us assume such a machine `M` which decides `P(1)` and build a machine deciding
+ `P(3)`. Let us assume `t₃ : Z -> bool` with bounded domain. Consider the run of `M` 
+ on `t₃`. I claim that there is (∃) a natural number bounding the number of
+ steps of this computation:
+ - there is a finite tape `t₁` (for `SBTM`) such that `t₁ ~ t₃`;
+ - the computation of `M` on `t₁` has a bounded length because `M` decides `P(1)`;
+ - that same bound holds for the length of the computation of `M` over `t₃` because
+   of bisimilarity.
+Then, using `ConstructiveEpsilon` we can then actually compute the bound on the number
+of steps because the step relation is decidable for Turing machines. Hence, `M` 
+also decides `P(3)`.
+
+Assuming that `P(3)` is not Coq decidable, this means that there is no Turing
+machines for deciding `P(1)` while it is actually Coq decidable.
+
+
+ 
+ There
+ is a (Coq non-computable) bisimilar `t₁` and `M` decides `P(1) t₁`. We show th
+ 
+ Running `M`
+ on `t₃` cannot go on forever because this would also mean that running `M` on `t₁`
+ goes on forever. Does this constructivelly entails that `M` terminates on `t₃`?
+ 
