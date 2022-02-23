@@ -1,75 +1,99 @@
-Require Import List Arith Lia.
+(**************************************************************)
+(*   Copyright Dominique Larchey-Wendling [*]                 *)
+(*                                                            *)
+(*                             [*] Affiliation LORIA -- CNRS  *)
+(**************************************************************)
+(*      This file is distributed under the terms of the       *)
+(*         CeCILL v2 FREE SOFTWARE LICENSE AGREEMENT          *)
+(**************************************************************)
+
+Require Import List Arith Lia Bool.
 
 Set Implicit Arguments.
 
-Inductive dir := lft | rt.
 
-Section move_many.
+Reserved Notation "x '~b' y" (at level 70, no associativity).
+Reserved Notation "f '↑' n"  (at level 1, left associativity, format "f ↑ n").
+Reserved Notation "m '⇈' l"  (at level 1, left associativity, format "m ⇈ l").
 
-  Variables (T : Type) (mv : dir -> T -> T).
+Reserved Notation "M '//' s '-1>' t" (at level 70, format "M  //  s  -1>  t").
+Reserved Notation "M '//' s '-[' n ']->' t" (at level 70, format "M  //  s  -[ n ]->  t").
+Reserved Notation "M '//' s '->>' t" (at level 70, format "M  //  s  ->>  t").
+Reserved Notation "M '//' s '~~>' t" (at level 70, format "M  //  s  ~~>  t").
 
-  Fixpoint move_many l t :=
-    match l with
-      | nil  => t
-      | d::l => (move_many l (mv d t))
-    end.
+Section nat_rev_ind.
 
-  Fact move_many_fix d l t : move_many (d::l) t = move_many l (mv d t).
-  Proof. reflexivity. Qed.
+  Variables (P : nat -> Prop)
+            (HP : forall n, P (S n) -> P n).
 
-End move_many.
+  Theorem nat_rev_ind x y : x <= y -> P y -> P x.
+  Proof. induction 1; auto. Qed.
 
-Definition bisimilar X T₁ r₁ m₁ T₂ r₂ m₂ :=
-   fun t₁ t₂ => forall l, r₁ (@move_many T₁ m₁ l t₁) = r₂ (@move_many T₂ m₂ l t₂) :> X.
+End nat_rev_ind.
 
-Fact bisimilar_refl X T r m t : @bisimilar X T r m _ r m t t.
-Proof. intro; reflexivity. Qed.
+Section minimize.
 
-Fact bisimilar_sym X T₁ r₁ m₁ T₂ r₂ m₂ t₁ t₂ : @bisimilar X T₁ r₁ m₁ T₂ r₂ m₂ t₁ t₂ -> bisimilar r₂ m₂ r₁ m₁ t₂ t₁.
-Proof. intros H l; symmetry; apply H. Qed.
+  Variable (P : nat -> Prop) (HP : forall n, { P n } + { ~ P n }).
 
-Fact bisimilar_trans X T₁ r₁ m₁ T₂ r₂ m₂ T₃ r₃ m₃ t₁ t₂ t₃ : 
-       @bisimilar X T₁ r₁ m₁ T₂ r₂ m₂ t₁ t₂ 
-    -> @bisimilar _ _  r₂ m₂ T₃ r₃ m₃ t₂ t₃
-    ->  bisimilar r₁ m₁ r₃ m₃ t₁ t₃.
-Proof. intros H1 H2 l; rewrite H1; auto. Qed.
+  Inductive bar n : Prop := 
+    | bar_stop : P n -> bar n
+    | bar_next : bar (S n) -> bar n.
 
-Section bisim.
+  Let Fixpoint bar_min n (D : bar n) : { m | P m /\ n <= m /\ forall i, P i -> i < n \/ m <= i }.
+  refine (match HP n with
+    | left H  => exist _ n _
+    | right H => let (m,Hm) := bar_min (S n) _ in exist _ m _
+  end).
+  Proof.
+    + split; auto; split; intros; lia.
+    + inversion D; auto; tauto.
+    + destruct Hm as (H1 & H2 & H3); split; auto; split; try lia.
+      intros i Hi.
+      destruct (eq_nat_dec i n) as [ -> | ]; try tauto.
+      apply H3 in Hi; lia.
+  Qed.
 
-  Variable (X T : Type) (rd : T -> X) (mv : dir -> T -> T).
+  Let le_P_bar : ex P -> bar 0.
+  Proof.  
+    intros (n & Hn).
+    cut (bar n).
+    + apply nat_rev_ind.
+      * now constructor 2.
+      * lia.
+    + now constructor 1.
+  Qed.
 
-  Definition bisim := @bisimilar X T rd mv T rd mv.
+  Theorem minimize : ex P -> { n | P n /\ forall i, i < n -> ~ P i }.
+  Proof.
+    intros H.
+    destruct bar_min with (1 := le_P_bar H) as (n & H1 & H2 & H3).
+    exists n; split; auto.
+    intros i H4 H5.
+    apply H3 in H5; lia.
+  Qed.
 
-  Infix "~b" := bisim (at level 70).
-
-  Fact bisim_refl t : t ~b t.
-  Proof. intros l; auto. Qed.
-
-  Fact bisim_sym r t : r ~b t -> t ~b r.
-  Proof. intros H l; symmetry; auto. Qed.
-
-  Fact bisim_trans r s t : r ~b s -> s ~b t -> r ~b t.
-  Proof. intros H1 ? l; rewrite H1; trivial. Qed.
-
-End bisim.
+End minimize.
 
 Section iter.
 
-  Variable (X : Type) (f : X -> X).
+  Variable (X : Type).
 
-  Fixpoint iter n :=
+  Implicit Type (f : X -> X).
+
+  Fixpoint iter f n :=
     match n with
       | 0   => fun x => x
-      | S n => fun x => iter n (f x)
-    end.
+      | S n => fun x => f↑n (f x)
+    end
+  where "f ↑ n" := (iter f n).
 
-  Fact iter_fix n x : iter (S n) x = iter n (f x).
+  Fact iter_fix f n x : f↑(S n) x = f↑n (f x).
   Proof. trivial. Qed.
 
-  Fact iter_plus n m x : iter (n+m) x = iter m (iter n x).
+  Fact iter_plus f n m x : f↑(n+m) x = f↑m (f↑n x).
   Proof. revert x; induction n; simpl; auto. Qed.
 
-  Fact iter_S n x : iter (S n) x = f (iter n x).
+  Fact iter_S f n x : f↑(S n) x = f (f↑n x).
   Proof.
     replace (S n) with (n+1) by lia.
     rewrite iter_plus; auto.
@@ -77,30 +101,21 @@ Section iter.
 
 End iter.
 
-Reserved Notation "x '~b' y" (at level 70).
+#[local] Infix "↑" := iter.
 
-Record tape_spec := {
-  tape :> Type;
-  move : dir -> tape -> tape;
-  read : tape -> bool;
-  write : bool -> tape -> tape;
-  read_write : forall t b, read (write b t) = b;
-  write_read : forall t, (bisim read move) (write (read t) t) t;
-  move_write : forall t n d b, read (iter (move d) (S n) (write b t)) = read (iter (move d) (S n) t);
-  write_write : forall t b c, (bisim read move) (write b (write c t)) (write b t);
-  left_right : forall t, (bisim read move) (move lft (move rt t)) t;
-  right_left : forall t, (bisim read move) (move rt (move lft t)) t;
-}.
+Fixpoint rel_iter X (R : X -> X -> Prop) n :=
+  match n with 
+    | 0   => eq
+    | S n => fun x y => exists z, R x z /\ rel_iter R n z y
+  end.
 
-Definition bs T1 T2 := bisimilar (@read T1) (@move T1) (@read T2) (@move T2).
+Fixpoint list_repeat X n (x : X) :=
+  match n with 
+    | 0 => nil
+    | S n => x::list_repeat n x
+  end.
 
-Infix "~b" := (@bs _ _) (at level 70).
-
-Arguments read {_}.
-Arguments move {_}.
-Arguments write {_}.
-
-Section Zmoves.
+Section Z.
 
   Inductive Z := neg : nat -> Z | zero : Z | pos : nat -> Z.
 
@@ -126,6 +141,82 @@ Section Zmoves.
   Fact Zpred_succ : forall z, Zpred (Zsucc z) = z.
   Proof. intros [ [] | | ]; auto. Qed.
 
+  Definition Ziter X (f g : X -> X) z :=
+    match z with
+      | neg n => f↑(S n)
+      | zero  => fun x => x
+      | pos n => g↑(S n)
+    end.
+
+End Z.
+
+Inductive dir := lft | rt.
+
+Section move_many.
+
+  Variables (T : Type).
+
+  Implicit Type (mv : dir -> T -> T).
+
+  Definition move_many mv := fold_left (fun t d => mv d t).
+
+  Infix "⇈" := move_many.
+  
+  Fact move_many_fix mv d l t : mv⇈(d::l) t = mv⇈l (mv d t).
+  Proof. reflexivity. Qed.
+
+  Fact move_many_app mv l r t : mv⇈(l++r) t = mv⇈r (mv⇈l t).
+  Proof. apply fold_left_app. Qed.
+
+End move_many.
+
+#[local] Infix "⇈" := move_many.
+
+Definition bisimilar X T₁ (r₁ : T₁ -> X) (m₁ : dir -> T₁ -> T₁) 
+                       T₂ (r₂ : T₂ -> _) (m₂ : dir -> T₂ -> T₂) :=
+   fun t₁ t₂ => forall l, r₁ (m₁⇈l t₁) = r₂ (m₂⇈l t₂).
+
+Fact bisimilar_refl X T r m t : @bisimilar X T r m _ r m t t.
+Proof. intro; reflexivity. Qed.
+
+Fact bisimilar_sym X T₁ r₁ m₁ T₂ r₂ m₂ t₁ t₂ : 
+         @bisimilar X T₁ r₁ m₁ T₂ r₂ m₂ t₁ t₂ 
+       -> bisimilar r₂ m₂ r₁ m₁ t₂ t₁.
+Proof. intros H l; symmetry; apply H. Qed.
+
+Fact bisimilar_trans X T₁ r₁ m₁ T₂ r₂ m₂ T₃ r₃ m₃ t₁ t₂ t₃ : 
+       @bisimilar X T₁ r₁ m₁ T₂ r₂ m₂ t₁ t₂ 
+    -> @bisimilar _ _  r₂ m₂ T₃ r₃ m₃ t₂ t₃
+    ->  bisimilar r₁ m₁ r₃ m₃ t₁ t₃.
+Proof. intros H1 H2 l; rewrite H1; auto. Qed.
+
+Definition bisim (X T : Type) rd mv := @bisimilar X T rd mv T rd mv.
+
+Record TapeSpec := {
+  tape :> Type;
+  move : dir -> tape -> tape;
+  read : tape -> bool;
+  write : bool -> tape -> tape;
+  read_write : forall t b, read (write b t) = b;
+  write_read : forall t, (bisim read move) (write (read t) t) t;
+  move_write : forall t n d b, read (iter (move d) (S n) (write b t)) = read (iter (move d) (S n) t);
+  write_write : forall t b c, (bisim read move) (write b (write c t)) (write b t);
+  left_right : forall t, (bisim read move) (move lft (move rt t)) t;
+  right_left : forall t, (bisim read move) (move rt (move lft t)) t;
+}.
+
+Implicit Type T : TapeSpec.
+
+Definition bisim_TS T1 T2 := bisimilar (read T1) (move T1) (read T2) (move T2).
+
+Infix "~b" := (@bisim_TS _ _) (at level 70).
+
+Arguments read {_}.
+Arguments move {_}.
+Arguments write {_}.
+
+Section Zmoves.
+
   Fixpoint moves2Z l :=
     match l with
       | nil    => zero
@@ -133,41 +224,33 @@ Section Zmoves.
       | rt::l  => Zsucc (moves2Z l)
     end.
 
-
-  Definition Ziter X (f g : X -> X) z :=
-    match z with
-      | neg n => iter f (S n)
-      | zero  => fun x => x
-      | pos n => iter g (S n)
-    end.
-
-  Fact bs_move (T1 T2 : tape_spec) (t1 : T1) (t2 : T2) d : t1 ~b t2 -> move d t1 ~b move d t2.
+  Fact bs_move T1 T2 (t1 : T1) (t2 : T2) d : t1 ~b t2 -> move d t1 ~b move d t2.
   Proof. intros H l; apply (H (_::_)). Qed.
 
   Hint Resolve bs_move : core.
 
-  Fact bs_moves_dir (T1 T2 : tape_spec) n d (t1 : T1) (t2 : T2) : t1 ~b t2 -> iter (move d) n t1 ~b iter (move d) n t2.
+  Fact bs_moves_dir T1 T2 n d (t1 : T1) (t2 : T2) : t1 ~b t2 -> (move d)↑n t1 ~b (move d)↑n t2.
   Proof.
     revert t1 t2; induction n as [ | n IHn ]; auto; simpl; intros t1 t2 H.
     apply IHn; auto.
   Qed.
 
-  Variable (T : tape_spec).
+  Variable (T : TapeSpec).
 
   Implicit Type t : T.
 
-  Hint Resolve bisim_refl : core.
+  Hint Resolve bisimilar_refl : core.
 
-  Fact bs_moves_Z l (t : T) : move_many move l t ~b Ziter (move lft) (move rt) (moves2Z l) t.
+  Fact bs_moves_Z l (t : T) : move⇈l t ~b Ziter (move lft) (move rt) (moves2Z l) t.
   Proof.
     revert t; induction l as [ | [] l IHl ]; intros t; simpl.
-    + apply bisim_refl.
-    + apply bisim_trans with (1 := IHl _).
-      destruct (moves2Z l) as [ | | [|n] ]; simpl; try apply bisim_refl.
+    + apply bisimilar_refl.
+    + apply bisimilar_trans with (1 := IHl _).
+      destruct (moves2Z l) as [ | | [|n] ]; simpl; try apply bisimilar_refl.
       * apply right_left.
       * apply bs_moves_dir, bs_move, right_left.
-    + apply bisim_trans with (1 := IHl _).
-      destruct (moves2Z l) as [ [|n] | | ]; simpl; try apply bisim_refl.
+    + apply bisimilar_trans with (1 := IHl _).
+      destruct (moves2Z l) as [ [|n] | | ]; simpl; try apply bisimilar_refl.
       * apply left_right.
       * apply bs_moves_dir, bs_move, left_right.
   Qed.
@@ -176,7 +259,7 @@ End Zmoves.
 
 Section bs.
 
-  Variable (T1 T2 : tape_spec).
+  Variable (T1 T2 : TapeSpec).
 
   Fact bs_read (t1 : T1) (t2 : T2) : t1 ~b t2 -> read t1 = read t2.
   Proof. intros H; apply (H nil). Qed.
@@ -196,29 +279,189 @@ Section bs.
 
 End bs.
 
-Record TM := Build_TM {
-  state : Type;
-  (* transition table *)
-  trans : state -> bool -> option (state * bool * dir) 
-}.
+Section TuringMachines.
 
-Fixpoint rel_iter X (R : X -> X -> Prop) n :=
-  match n with 
-    | 0   => eq
-    | S n => fun x y => exists z, R x z /\ rel_iter R n z y
-  end.
+  Record TuringMachine := {
+    state : Type;
+    trans : state -> bool -> option (state * bool * dir) 
+  }.
 
-Inductive TM_step {T : tape_spec} (M : TM) : (state M*T) -> (state M*T) -> Prop :=
-  | in_TM_step s₁ t₁ s₂ b d : trans M s₁ (read t₁) = Some (s₂,b,d) -> TM_step M (s₁,t₁) (s₂,move d (write b t₁)).
+  Variable T : TapeSpec.
 
-Definition TM_steps {T} M := rel_iter (@TM_step T M).
+  Implicit Type M : TuringMachine.
 
-Section bs_TM.
+  Inductive TM_step M : (state M*T) -> (state M*T) -> Prop :=
+    | in_TM_step s₁ t₁ s₂ b d : trans M s₁ (read t₁) = Some (s₂,b,d) 
+                             -> M // (s₁,t₁) -1> (s₂,move d (write b t₁))
+  where "M // s -1> t" := (TM_step M s t).
 
-  Variable (M : TM) (T T' : tape_spec).
+  Definition TM_steps M := rel_iter (TM_step M).
+
+  Notation "M // c₁ -[ n ]-> c₂" := (TM_steps M n c₁ c₂).
+
+  Definition TM_reach M c₁ c₂ := exists n, M // c₁ -[n]-> c₂.
+  Definition TM_stop M c₁ := forall c₂, ~ M // c₁ -1> c₂.
+  Definition TM_output M c₁ c₂ := TM_reach M c₁ c₂ /\ TM_stop M c₂.
+ 
+  Notation "M // c₁ ->> c₂" := (TM_reach M c₁ c₂).
+  Notation "M // c₁ ~~> c₂" := (TM_output M c₁ c₂).
+ 
+  Definition TM_halt M s t := exists c, M // (s,t) ~~> c.
+  Definition TM_compute M s t t' := exists s', M // (s,t) ~~> (s',t').
+
+End TuringMachines.
+
+Arguments TM_step {_}.
+Arguments TM_steps {_}.
+Arguments TM_reach {_}.
+Arguments TM_stop {_}.
+Arguments TM_output {_}.
+Arguments TM_halt {_}.
+Arguments TM_compute {_}.
+
+#[local] Notation "M // s -1> t" := (TM_step M s t).
+#[local] Notation "M // c₁ -[ n ]-> c₂" := (TM_steps M n c₁ c₂).
+#[local] Notation "M // c₁ ->> c₂" := (TM_reach M c₁ c₂).
+#[local] Notation "M // c₁ ~~> c₂" := (TM_output M c₁ c₂).
+
+Definition TapeProblem := forall T, T -> Prop.
+
+Definition TM_repr (P : TapeProblem) := 
+  { M : _ & { s | forall T t, TM_halt M s t <-> P T t } }.
+
+Definition SEARCH d b : TapeProblem := fun _ t => exists n, b = read ((move d)↑n t).
+
+Section TM_search.
+
+  Variable (d : dir) (b : bool).
+
+  Definition TM_search : TuringMachine.
+  Proof.
+    exists unit.
+    intros _ c.
+    refine(match bool_dec b c with
+      | left H => None
+      | right H => Some (tt,c,d)
+    end).
+  Defined.
+
+  Notation M := TM_search.
+
+  Variable (T : TapeSpec).
+
+  Implicit Type t : T.
+
+  Fact TM_search_step s t s' t' : 
+         M // (s,t) -1> (s',t') <-> b <> read t /\ t' = move d (write (read t) t).
+  Proof.
+    split.
+    + change t with (snd (s,t)) at 2 3 4.
+      change t' with (snd (s',t')) at 2.
+      generalize (s,t) (s',t'); clear s t s' t'.
+      induction 1 as [ [] t [] b' d' H ]; simpl in H |- *.
+      destruct (bool_dec b (read t)) as [ E | D ]; try easy; split; auto.
+      inversion H; auto.
+    + intros [ H1 -> ].
+      destruct s; destruct s'.
+      constructor; simpl.
+      now destruct (bool_dec b (read t)).
+  Qed.
+
+  Fact TM_search_steps_inv n s t s' t' :
+        M // (s,t) -[n]-> (s',t') -> (forall i, i < n -> b <> read ((move d)↑i t)) /\ t' ~b (move d)↑n t.
+  Proof.
+    unfold TM_steps.
+    revert s t s' t'; induction n as [ | n IHn ]; intros s t s' t'; simpl.
+    + inversion 1; subst s' t'; split.
+      * intros; lia.
+      * apply bisimilar_refl.
+    + intros (([],t1) & H1 & H2).
+      apply TM_search_step in H1 as [ H0 H1 ].
+      apply IHn in H2 as [ H2 H3 ].
+      split.
+      * intros [ | i ] Hi; auto.
+        simpl.
+        intros E.
+        apply (H2 i); try lia.
+        rewrite E.
+        apply bs_read, bs_moves_dir; subst.
+        apply bs_move, bisimilar_sym, write_read.
+      * apply bisimilar_trans with (1 := H3).
+        apply bs_moves_dir; subst.
+        apply bs_move, write_read.
+  Qed.
+
+  Fact TM_search_steps n s t :
+        (forall i, i < n -> b <> read ((move d)↑i t)) -> exists c, M // (s,t) -[n]-> c.
+  Proof.
+    revert s t; induction n as [ | n IHn ]; intros s t H.
+    + exists (s,t); red; simpl; auto.
+    + destruct IHn with (s := tt) (t := move d (write (read t) t))
+        as (c & Hc).
+      * intros i Hi E.
+        destruct (H (S i)); try lia.
+        rewrite E; simpl.
+        apply bs_read, bs_moves_dir, bs_move, write_read.
+      * exists c, (tt, move d (write (read t) t)); split; auto.
+        constructor; simpl.
+        destruct (bool_dec b (read t)) as [ E |  ]; auto.
+        destruct (H 0); auto; lia.
+  Qed.
+
+  Fact TM_search_stop s t : TM_stop M (s,t) <-> b = read t.
+  Proof.
+    split.
+    + intros H.
+      destruct (bool_dec b (read t)) as [ | D ]; auto; exfalso.
+      apply (H (tt,move d (write (read t) t))).
+      constructor; simpl.
+      now destruct (bool_dec b (read t)).
+    + intros E (s',t') H.
+      apply TM_search_step in H as [ [] _ ]; auto.
+  Qed.
+
+  Lemma TM_search_halt s t :
+        TM_halt M s t <-> exists n, b = read ((move d)↑n t).
+  Proof.
+    split.
+    + intros ((s',t') & (n & Hn) & H').
+      exists n.
+      apply TM_search_stop in H' as ->.
+      apply TM_search_steps_inv in Hn as [ _ H2 ].
+      apply bs_read; auto.
+    + intros H.
+      apply minimize in H as (n & H1 & H2).
+      2: intro; apply bool_dec.
+      apply TM_search_steps with (s := s) in H2 as ((s',t') & H').
+      exists (s',t'); split.
+      * exists n; auto.
+      * apply TM_search_stop.
+        apply TM_search_steps_inv in H' as [ _ H' ].
+        rewrite H1.
+        now apply bs_read, bisimilar_sym.
+  Qed.
+
+End TM_search.
+
+(* The (polymorphic) SEARCH problem is Turing represented *)
+
+Theorem SEARCH_repr d b : TM_repr (SEARCH d b).
+Proof.
+  exists (TM_search d b), tt.
+  intros T t; apply TM_search_halt.
+Qed.
+
+Section bisim_TM.
+
+  Variables (T T' : TapeSpec) (M : TuringMachine).
 
   Let TM_step_bisim_rec (x₁ y₁ : state M * T) (x₂ : state M * T') : 
-    fst x₁ = fst x₂ -> snd x₁ ~b snd x₂ -> TM_step M x₁ y₁ -> exists y₂, fst y₁ = fst y₂ /\ snd y₁ ~b snd y₂ /\ TM_step M x₂ y₂.
+          fst x₁ = fst x₂ 
+       -> snd x₁ ~b snd x₂ 
+       -> M // x₁ -1> y₁ 
+       -> exists y₂, fst y₁ = fst y₂ 
+                  /\ snd y₁ ~b snd y₂ 
+                  /\ M // x₂ -1> y₂.
   Proof.
     intros H1 H2 H3; revert H3 x₂ H1 H2.
     induction 1 as [ s1 t1 s2 b d H ]; intros (s3,t3) H1 H2; simpl in *; subst s3.
@@ -229,14 +472,20 @@ Section bs_TM.
   Qed.
 
   Lemma TM_step_bisim s₁ (t₁ : T) s₂ t₂ (t₁' : T') : 
-     t₁ ~b t₁' -> TM_step M (s₁,t₁) (s₂,t₂) -> exists t₂', t₂ ~b t₂' /\ TM_step M (s₁,t₁') (s₂,t₂').
+          t₁ ~b t₁' 
+       -> M // (s₁,t₁) -1> (s₂,t₂) 
+       -> exists t₂', t₂ ~b t₂' 
+                   /\ M // (s₁,t₁') -1> (s₂,t₂').
   Proof.
     intros H1 H2.
     apply (@TM_step_bisim_rec (s₁,t₁) (s₂,t₂) (s₁,t₁')) in H2 as ((?,t') & H3 & H4 & H5); simpl in *; subst; eauto.
   Qed.
 
-  Theorem TM_steps_bisim n s₁ (t₁ : T) s₂ t₂ (t₁' : T') : 
-     t₁ ~b t₁' -> TM_steps M n (s₁,t₁) (s₂,t₂) -> exists t₂', t₂ ~b t₂' /\ TM_steps M n (s₁,t₁') (s₂,t₂').
+  Lemma TM_steps_bisim n s₁ (t₁ : T) s₂ t₂ (t₁' : T') : 
+          t₁ ~b t₁' 
+       -> M // (s₁,t₁) -[n]-> (s₂,t₂) 
+       -> exists t₂', t₂ ~b t₂' 
+                   /\ M // (s₁,t₁') -[n]-> (s₂,t₂').
   Proof.
     unfold TM_steps.
     revert s₁ t₁ s₂ t₂ t₁'; induction n as [ | n IHn ]; intros s1 t1 s2 t2 t1'; simpl; intros H1 H2.
@@ -248,37 +497,30 @@ Section bs_TM.
       exists (s3,t3'); auto.
   Qed.
 
-End bs_TM.
+End bisim_TM.
 
 Section TM_HALT_bisimilar.
 
-  Definition TM_HALT {T : tape_spec} (M : TM) (s : state M) (t : T) :=
-    exists o n, TM_steps M n (s,t) o /\ forall x, ~ TM_step M o x.
-
-  Let bs_TM_HALT_half (T1 T2 : tape_spec) M s (t1 : T1) (t2 : T2) : t1 ~b t2 -> TM_HALT M s t1 -> TM_HALT M s t2.
+  Let bs_TM_HALT_half T1 T2 M s (t1 : T1) (t2 : T2) : t1 ~b t2 -> TM_halt M s t1 -> TM_halt M s t2.
   Proof.
-    intros E ((s',t') & n & H1 & H2).
-    destruct TM_steps_bisim with (1 := E) (2 := H1) as (t3 & H3 & H4).
-    exists (s',t3), n;split; auto.
+    intros E ((s',t') & (n & Hn) & H2).
+    destruct TM_steps_bisim with (1 := E) (2 := Hn) as (t3 & H3 & H4).
+    exists (s',t3); split.
+    1: exists n; auto.
     intros (s4,t4) H.
     apply bisimilar_sym in H3.
     destruct TM_step_bisim with (1 := H3) (2 := H) as (t5 & H5 & H6).
     apply H2 in H6; auto.
   Qed.
 
-  Theorem TM_HALT_bisimilar (T1 T2 : tape_spec) M s (t1 : T1) (t2 : T2) : t1 ~b t2 -> TM_HALT M s t1 <-> TM_HALT M s t2.
+  Theorem TM_HALT_bisimilar T1 T2 M s (t1 : T1) (t2 : T2) : 
+          t1 ~b t2 -> TM_halt M s t1 <-> TM_halt M s t2.
   Proof.
     intros H; split; apply bs_TM_HALT_half; auto.
     apply bisimilar_sym; auto.
   Qed.
 
 End TM_HALT_bisimilar.
-
-Fixpoint list_repeat X n (x : X) :=
-  match n with 
-    | 0 => nil
-    | S n => x::list_repeat n x
-  end.
 
 Section SBTM.
 
@@ -338,23 +580,23 @@ Section SBTM.
   Local Fact sbtm_rd_mv_rt_S n l l' b b' r : sbtm_rd (iter (sbtm_mv rt) (S n) (l,b,r)) = sbtm_rd (iter (sbtm_mv rt) (S n) (l',b',r)).
   Proof.  simpl; destruct r; apply sbtm_rd_mv_rt. Qed.
 
-  Definition Tape_SBTM : tape_spec.
+  Definition Tape_SBTM : TapeSpec.
   Proof.
     exists _ sbtm_mv sbtm_rd sbtm_wr.
     + intros ([],?); simpl; auto.
-    + intros ((l,b),r); simpl; apply bisim_refl.
+    + intros ((l,b),r); simpl; apply bisimilar_refl.
     + intros ((l,b),r) n [] c; simpl sbtm_wr.
       * apply sbtm_rd_mv_lft_S.
       * apply sbtm_rd_mv_rt_S.
-    + intros ([],?) ? ?; simpl; apply bisim_refl.
+    + intros ([],?) ? ?; simpl; apply bisimilar_refl.
     + intros ((l,b),[ | x r ]); simpl.
-      2: apply bisim_refl.
-      apply bisim_sym.
+      2: apply bisimilar_refl.
+      apply bisimilar_sym.
       rewrite (app_nil_end l) at 2. 
       apply sbtm_bisim with (n := 0) (m := 1) (r := nil).
     + intros (([|x l],b),r); simpl.
-      2: apply bisim_refl.
-      apply bisim_sym.
+      2: apply bisimilar_refl.
+      apply bisimilar_sym.
       rewrite (app_nil_end r) at 2.
       apply sbtm_bisim with (m := 0) (n := 1) (l := nil).
   Defined.
@@ -394,7 +636,7 @@ Section Ztape.
     rewrite iter_fix, IHn; auto.
   Qed.
 
-  Definition Tape_Z : tape_spec.
+  Definition Tape_Z : TapeSpec.
   Proof.
     exists _ Ztape_mv Ztape_rd Ztape_wr.
     + intros; reflexivity.
@@ -450,7 +692,7 @@ Section Ztape_bounded.
     destruct z; simpl; auto; right; lia.
   Qed.
 
-  Definition Tape_ZB : tape_spec.
+  Definition Tape_ZB : TapeSpec.
   Proof.
     exists _ ZBtape_mv ZBtape_rd ZBtape_wr.
   Admitted.
