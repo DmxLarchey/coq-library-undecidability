@@ -9,398 +9,14 @@
 
 Require Import List Arith Lia Bool.
 
+From TuringDec
+  Require Import rel_utils nat_utils Z_utils tapes.
+
+Import NatUtilsNotations TapeNotations.
+
 Set Implicit Arguments.
 
-Reserved Notation "x '~b' y" (at level 70, no associativity).
-Reserved Notation "f '↑' n"  (at level 1, left associativity, format "f ↑ n").
-Reserved Notation "m '⇈' l"  (at level 1, left associativity, format "m ⇈ l").
-
-Reserved Notation "M '//' s '-1>' t" (at level 70, format "M  //  s  -1>  t").
-Reserved Notation "M '//' s '-[' n ']->' t" (at level 70, format "M  //  s  -[ n ]->  t").
-Reserved Notation "M '//' s '->>' t" (at level 70, format "M  //  s  ->>  t").
-Reserved Notation "M '//' s '~~>' t" (at level 70, format "M  //  s  ~~>  t").
-
-Definition functional {X Y} (R : X -> Y -> Prop) :=
-  forall x y₁ y₂, R x y₁ -> R x y₂ -> y₁ = y₂.
-
-Section rel_iter.
-
-  Variable (X : Type). 
-
-  Implicit Type (R : X -> X -> Prop).
-
-  Fixpoint rel_iter R n :=
-    match n with 
-      | 0   => eq
-      | S n => fun x y => exists z, R x z /\ R // z -[n]-> y
-    end
-  where "R // x -[ n ]-> y" := (rel_iter R n x y).
-
-  Variable (R : X -> X -> Prop).
-
-  Fact rel_iter_1 x y : R // x -[1]-> y <-> R x y.
-  Proof. simpl; firstorder; subst; auto. Qed.
-
-  Fact rel_iter_plus a b x y : R // x -[a+b]-> y <-> exists z, R // x -[a]-> z /\ R // z -[b]-> y.
-  Proof.
-    revert x y; induction a as [ | a IHa ]; intros x y; simpl.
-    + firstorder; subst; auto.
-    + split.
-      * intros (z & H1 & H2).
-        apply IHa in H2 as (k & H2 & H3).
-        exists k; split; auto; exists z; auto.
-      * intros (z & (k & H1 & H2) & H3).
-        exists k; split; auto.
-        apply IHa; eauto.
-  Qed.
-
-  Hypothesis next : forall x, { y | R x y } + { forall y, ~ R x y }.
-
-  Fact rel_iter_next n x : { y | R // x -[n]-> y } + { y : _ & { m | m < n /\ R // x -[m]-> y /\ forall z, ~ R y z } }.
-  Proof.
-    revert x; induction n as [ | n IHn ]; intros x.
-    + left; exists x; red; simpl; auto.
-    + destruct (next x) as [ (y & Hy) | H ].
-      * destruct (IHn y) as [ (z & Hz) | (z & m & H1 & H2 & H3) ].
-        - left; exists z, y; auto.
-        - right; exists z, (S m); split; try lia; split; auto.
-          exists y; auto.
-      * right; exists x, 0; repeat split; auto; lia.
-  Qed.
-
-  Let Fixpoint norm_Acc x (D : Acc (fun x y => R y x) x) : { y : _ & { n | R // x -[n]-> y /\ forall z, ~ R y z } }.
-  Proof.
-    destruct (next x) as [ (y & Hy) | Hx ].
-    + destruct (norm_Acc y) as (z & n & H1 & H2).
-      * apply Acc_inv with (1 := D), Hy.
-      * exists z, (S n); split; auto; exists y; auto.
-    + exists x, 0; simpl; auto.
-  Qed.
-
-  Hypothesis Rfun : functional R.
-
-  Fact rel_iter_fun n : functional (rel_iter R n).
-  Proof.
-    induction n as [ | n IHn ]; intros x y1 y2; simpl.
-    + intros; subst; auto.
-    + intros (z1 & H1 & H2) (z2 & H3 & H4).
-      generalize (Rfun H1 H3); intros; subst.
-      revert H2 H4; apply IHn.
-  Qed.
-
-  Fact rel_iter_fun_no_further n m x y z : 
-           R // x -[n]-> y 
-        -> R // x -[m]-> z 
-        -> (forall k, ~ R z k) 
-        -> n <= m.
-  Proof.
-    intros H1 H2 H3.
-    destruct (le_lt_dec n m) as [ | H ]; auto; exfalso.
-    assert (exists k, n = m + S k) as (k & ->).
-    1: exists (n-m-1); lia.
-    apply rel_iter_plus in H1 as (u & H0 & r & H1 & _).
-    generalize (rel_iter_fun _ _ _ _ H0 H2); intros <-.
-    apply (H3 _ H1).
-  Qed.
-
-  Arguments rel_iter_fun_no_further {_ _ _ _ _}.
-
-  Fact normal_form_fun_uniq n m x y z : 
-           R // x -[n]-> y 
-        -> R // x -[m]-> z 
-        -> (forall k, ~ R y k) 
-        -> (forall k, ~ R z k)
-        -> n = m /\ y = z.
-  Proof.
-    intros H1 H2 H3 H4.
-    generalize (rel_iter_fun_no_further H1 H2 H4)
-               (rel_iter_fun_no_further H2 H1 H3).
-    intros H5 H6.
-    assert (n = m) by lia; split; auto; subst m.
-    revert H1 H2; apply rel_iter_fun.
-  Qed.
-
-  Let has_nf_Acc n x y : R // x -[n]-> y -> (forall z, ~ R y z) -> Acc (fun x y => R y x) x.
-  Proof.
-    revert x y; induction n as [ | n IHn ]; simpl; intros x y H1 H2.
-    + subst y; constructor; intros z Hz; destruct (H2 _ Hz).
-    + destruct H1 as (z & H0 & H1).
-      constructor 1; intros k Hk.
-      generalize (Rfun H0 Hk); intros <-; eauto.
-  Qed.
-
-  Theorem normalize_fun x : (exists y n, R // x -[n]-> y /\ forall z, ~ R y z)
-                         -> { y : _ & { n | R // x -[n]-> y /\ forall z, ~ R y z } }.
-  Proof.
-    intros H; apply norm_Acc.
-    destruct H as (y & n & H1 & H2).
-    revert H1 H2; apply has_nf_Acc.
-  Qed.
-
-End rel_iter.
-
-Section nat_rev_ind.
-
-  Variables (P : nat -> Prop)
-            (HP : forall n, P (S n) -> P n).
-
-  Theorem nat_rev_ind x y : x <= y -> P y -> P x.
-  Proof. induction 1; auto. Qed.
-
-End nat_rev_ind.
-
-Section minimize.
-
-  Variable (P : nat -> Prop) (HP : forall n, { P n } + { ~ P n }).
-
-  Inductive bar n : Prop := 
-    | bar_stop : P n -> bar n
-    | bar_next : bar (S n) -> bar n.
-
-  Let Fixpoint bar_min n (D : bar n) : { m | P m /\ n <= m /\ forall i, P i -> i < n \/ m <= i }.
-  refine (match HP n with
-    | left H  => exist _ n _
-    | right H => let (m,Hm) := bar_min (S n) _ in exist _ m _
-  end).
-  Proof.
-    + split; auto; split; intros; lia.
-    + inversion D; auto; tauto.
-    + destruct Hm as (H1 & H2 & H3); split; auto; split; try lia.
-      intros i Hi.
-      destruct (eq_nat_dec i n) as [ -> | ]; try tauto.
-      apply H3 in Hi; lia.
-  Qed.
-
-  Let le_P_bar : ex P -> bar 0.
-  Proof.  
-    intros (n & Hn).
-    cut (bar n).
-    + apply nat_rev_ind.
-      * now constructor 2.
-      * lia.
-    + now constructor 1.
-  Qed.
-
-  Theorem minimize : ex P -> { n | P n /\ forall i, P i -> n <= i }.
-  Proof.
-    intros H.
-    destruct bar_min with (1 := le_P_bar H) as (n & H1 & H2 & H3).
-    exists n; split; auto.
-    intros i H4.
-    apply H3 in H4; lia.
-  Qed.
-
-  Corollary ex_iff_ex_min : ex P <-> exists n, P n /\ forall m, P m -> n <= m.
-  Proof.
-    split.
-    + intros H.
-      apply minimize in H as (n & ? & ?); eauto.
-    + intros (n & ? & _); eauto.
-  Qed.
-
-End minimize.
-
-Section iter.
-
-  Variable (X : Type).
-
-  Implicit Type (f : X -> X).
-
-  Fixpoint iter f n :=
-    match n with
-      | 0   => fun x => x
-      | S n => fun x => f↑n (f x)
-    end
-  where "f ↑ n" := (iter f n).
-
-  Fact iter_fix f n x : f↑(S n) x = f↑n (f x).
-  Proof. trivial. Qed.
-
-  Fact iter_plus f n m x : f↑(n+m) x = f↑m (f↑n x).
-  Proof. revert x; induction n; simpl; auto. Qed.
-
-  Fact iter_S f n x : f↑(S n) x = f (f↑n x).
-  Proof.
-    replace (S n) with (n+1) by lia.
-    rewrite iter_plus; auto.
-  Qed.
-
-End iter.
-
-#[local] Infix "↑" := iter.
-
-Fixpoint list_repeat X n (x : X) :=
-  match n with 
-    | 0 => nil
-    | S n => x::list_repeat n x
-  end.
-
-Section Z.
-
-  Inductive Z := neg : nat -> Z | zero : Z | pos : nat -> Z.
-
-  Definition Zsucc z :=
-    match z with 
-      | neg 0     => zero
-      | neg (S n) => neg n
-      | zero      => pos 0
-      | pos n     => pos (S n)
-    end.
-
-  Definition Zpred z :=
-    match z with
-      | pos 0     => zero
-      | pos (S n) => pos n
-      | zero      => neg 0
-      | neg n     => neg (S n)
-    end.
-
-  Fact Zsucc_pred : forall z, Zsucc (Zpred z) = z.
-  Proof. intros [ | | [] ]; auto. Qed.
-
-  Fact Zpred_succ : forall z, Zpred (Zsucc z) = z.
-  Proof. intros [ [] | | ]; auto. Qed.
-
-  Definition Ziter X (f g : X -> X) z :=
-    match z with
-      | neg n => f↑(S n)
-      | zero  => fun x => x
-      | pos n => g↑(S n)
-    end.
-
-End Z.
-
-Inductive dir := lft | rt.
-
-Section move_many.
-
-  Variables (T : Type).
-
-  Implicit Type (mv : dir -> T -> T).
-
-  Definition move_many mv := fold_left (fun t d => mv d t).
-
-  Infix "⇈" := move_many.
-  
-  Fact move_many_fix mv d l t : mv⇈(d::l) t = mv⇈l (mv d t).
-  Proof. reflexivity. Qed.
-
-  Fact move_many_app mv l r t : mv⇈(l++r) t = mv⇈r (mv⇈l t).
-  Proof. apply fold_left_app. Qed.
-
-End move_many.
-
-#[local] Infix "⇈" := move_many.
-
-Definition bisimilar X T₁ (r₁ : T₁ -> X) (m₁ : dir -> T₁ -> T₁) 
-                       T₂ (r₂ : T₂ -> _) (m₂ : dir -> T₂ -> T₂) :=
-   fun t₁ t₂ => forall l, r₁ (m₁⇈l t₁) = r₂ (m₂⇈l t₂).
-
-Fact bisimilar_refl X T r m t : @bisimilar X T r m _ r m t t.
-Proof. intro; reflexivity. Qed.
-
-Fact bisimilar_sym X T₁ r₁ m₁ T₂ r₂ m₂ t₁ t₂ : 
-         @bisimilar X T₁ r₁ m₁ T₂ r₂ m₂ t₁ t₂ 
-       -> bisimilar r₂ m₂ r₁ m₁ t₂ t₁.
-Proof. intros H l; symmetry; apply H. Qed.
-
-Fact bisimilar_trans X T₁ r₁ m₁ T₂ r₂ m₂ T₃ r₃ m₃ t₁ t₂ t₃ : 
-       @bisimilar X T₁ r₁ m₁ T₂ r₂ m₂ t₁ t₂ 
-    -> @bisimilar _ _  r₂ m₂ T₃ r₃ m₃ t₂ t₃
-    ->  bisimilar r₁ m₁ r₃ m₃ t₁ t₃.
-Proof. intros H1 H2 l; rewrite H1; auto. Qed.
-
-Definition bisim (X T : Type) rd mv := @bisimilar X T rd mv T rd mv.
-
-Record TapeSpec := {
-  tape :> Type;
-  move : dir -> tape -> tape;
-  read : tape -> bool;
-  write : bool -> tape -> tape;
-  read_write : forall t b, read (write b t) = b;
-  write_read : forall t, (bisim read move) (write (read t) t) t;
-  move_write : forall t n d b, read ((move d)↑(S n) (write b t)) = read ((move d)↑(S n) t);
-  write_write : forall t b c, (bisim read move) (write b (write c t)) (write b t);
-  left_right : forall t, (bisim read move) (move lft (move rt t)) t;
-  right_left : forall t, (bisim read move) (move rt (move lft t)) t;
-}.
-
 Implicit Type T : TapeSpec.
-
-Definition bisim_TS T1 T2 := bisimilar (read T1) (move T1) (read T2) (move T2).
-
-Infix "~b" := (@bisim_TS _ _) (at level 70).
-
-Arguments read {_}.
-Arguments move {_}.
-Arguments write {_}.
-
-Section Zmoves.
-
-  Fixpoint moves2Z l :=
-    match l with
-      | nil    => zero
-      | lft::l => Zpred (moves2Z l)
-      | rt::l  => Zsucc (moves2Z l)
-    end.
-
-  Fact bs_move T1 T2 (t1 : T1) (t2 : T2) d : t1 ~b t2 -> move d t1 ~b move d t2.
-  Proof. intros H l; apply (H (_::_)). Qed.
-
-  Hint Resolve bs_move : core.
-
-  Fact bs_moves_dir T1 T2 n d (t1 : T1) (t2 : T2) : t1 ~b t2 -> (move d)↑n t1 ~b (move d)↑n t2.
-  Proof.
-    revert t1 t2; induction n as [ | n IHn ]; auto; simpl; intros t1 t2 H.
-    apply IHn; auto.
-  Qed.
-
-  Variable (T : TapeSpec).
-
-  Implicit Type t : T.
-
-  Hint Resolve bisimilar_refl : core.
-
-  Fact bs_moves_Z l (t : T) : move⇈l t ~b Ziter (move lft) (move rt) (moves2Z l) t.
-  Proof.
-    revert t; induction l as [ | [] l IHl ]; intros t; simpl.
-    + apply bisimilar_refl.
-    + apply bisimilar_trans with (1 := IHl _).
-      destruct (moves2Z l) as [ | | [|n] ]; simpl; try apply bisimilar_refl.
-      * apply right_left.
-      * apply bs_moves_dir, bs_move, right_left.
-    + apply bisimilar_trans with (1 := IHl _).
-      destruct (moves2Z l) as [ [|n] | | ]; simpl; try apply bisimilar_refl.
-      * apply left_right.
-      * apply bs_moves_dir, bs_move, left_right.
-  Qed.
-
-  Fact bs_read_moves_Z l (t : T) : read (move⇈l t) = read (Ziter (move lft) (move rt) (moves2Z l) t).
-  Proof. apply (bs_moves_Z _ _ nil). Qed.
-
-End Zmoves.
-
-Section bs.
-
-  Variable (T1 T2 : TapeSpec).
-
-  Fact bs_read (t1 : T1) (t2 : T2) : t1 ~b t2 -> read t1 = read t2.
-  Proof. intros H; apply (H nil). Qed.
-
-  Fact bs_write b (t1 : T1) (t2 : T2) : t1 ~b t2 -> write b t1 ~b write b t2.
-  Proof.
-    intros H l.
-    generalize (bs_moves_Z _ l (write b t1) nil)
-               (bs_moves_Z _ l (write b t2) nil); simpl; intros -> ->.
-   destruct (moves2Z l) as [ n | | n ]; unfold Ziter.
-    + rewrite !move_write.
-      apply (bs_moves_dir (S n) _ H nil).
-    + now rewrite !read_write.
-    + rewrite !move_write.
-      apply (bs_moves_dir (S n) _ H nil).
-  Qed.
-
-End bs.
 
 Section TuringMachines.
 
@@ -585,11 +201,11 @@ Section TM_search.
         1: destruct H0; auto.
         apply le_n_S, H2.
         rewrite H; subst t1; simpl.
-        apply bs_read, bs_moves_dir, 
+        apply bs_read, bs_iter_move, 
               bs_move, bisimilar_sym,
               write_read. 
       * apply bisimilar_trans with (1 := H3).
-        apply bs_moves_dir; subst.
+        apply bs_iter_move; subst.
         apply bs_move, write_read.
   Qed.
 
@@ -603,7 +219,7 @@ Section TM_search.
       * intros i Hi.
         apply le_S_n, H.
         rewrite Hi; simpl.
-        apply bs_read, bs_moves_dir, bs_move, write_read.
+        apply bs_read, bs_iter_move, bs_move, write_read.
       * exists c, (tt, move d (write (read t) t)); split; auto.
         constructor; simpl.
         destruct (bool_dec b (read t)) as [ E |  ]; auto.
@@ -749,240 +365,6 @@ Section TM_HALT_bisimilar.
 
 End TM_HALT_bisimilar.
 
-Section SBTM.
-
-  Implicit Type (b : bool) (t : list bool * bool * list bool).
-
-  Definition sbtm_mv d t :=
-    match d with
-     | lft =>
-        match t with
-        | (l :: ls, a, rs) => (ls, l, a :: rs)
-        | (nil, a, rs) => (nil, false, a :: rs)
-        end
-     | rt =>
-        match t with
-        | (ls, a, r :: rs) => (a :: ls, r, rs)
-        | (ls, a, nil) => (a :: ls, false, nil)
-        end
-    end.
-
-  Definition sbtm_rd t := let '(_,b,_) := t in b.
-  Definition sbtm_wr b t := let '(l,_,r) := t in (l,b,r).
-
-  Fact sbtm_rd_mv_lft_nth n l b r : sbtm_rd ((sbtm_mv lft)↑(S n) (l,b,r)) = nth n l false.
-  Proof.
-    revert l b r.
-    induction n as [ | n IHn ]; intros [ | x l ] b r; simpl nth; auto;
-      rewrite iter_fix; simpl sbtm_mv at 2; rewrite IHn; auto.
-    destruct n; auto.
-  Qed.
-
-  Fact sbtm_rd_mv_rt_nth n l b r : sbtm_rd ((sbtm_mv rt)↑(S n) (l,b,r)) = nth n r false.
-  Proof.
-    revert l b r.
-    induction n as [ | n IHn ]; intros l b [ | x r ]; simpl nth; auto;
-      rewrite iter_fix; simpl sbtm_mv at 2; rewrite IHn; auto.
-    destruct n; auto.
-  Qed.
-
-  Infix "~b" := (bisim sbtm_rd sbtm_mv).
-
-  Local Fact sbtm_bisim n m l b r : (l,b,r) ~b (l++list_repeat n false,b,r++list_repeat m false).
-  Proof.
-    intros ll; revert l b r n m; induction ll as [ | [] ll IH ]; intros l b r n m; auto.
-   + rewrite !move_many_fix; simpl.
-     destruct l as [ | x l ]; simpl.
-     * destruct n as [ | n ]; simpl.
-       - apply IH with (n := 0) (l := nil) (r := _::_).
-       - apply IH with (n := _) (l := nil) (r := _::_).
-     * apply IH with (r := _::_).
-   + rewrite !move_many_fix; simpl.
-     destruct r as [ | x r ]; simpl.
-     * destruct m as [ | m ]; simpl.
-       - apply IH with (m := 0) (r := nil) (l := _::_).
-       - apply IH with (m := _) (r := nil) (l := _::_).
-     * apply IH with (l := _::_).
-  Qed.
-
-  Local Fact sbtm_rd_mv_lft n l b r r' : sbtm_rd (iter (sbtm_mv lft) n (l,b,r)) = sbtm_rd (iter (sbtm_mv lft) n (l,b,r')).
-  Proof.
-    revert l b r r'; induction n as [ | n IHn ]; intros l b r r'; simpl; auto.
-    destruct l; auto.
-  Qed.
-
-  Local Fact sbtm_rd_mv_lft_S n l b b' r r' : sbtm_rd (iter (sbtm_mv lft) (S n) (l,b,r)) = sbtm_rd (iter (sbtm_mv lft) (S n) (l,b',r')).
-  Proof. simpl; destruct l; apply sbtm_rd_mv_lft. Qed.
-
-  Local Fact sbtm_rd_mv_rt n l l' b r : sbtm_rd (iter (sbtm_mv rt) n (l,b,r)) = sbtm_rd (iter (sbtm_mv rt) n (l',b,r)).
-  Proof.
-    revert l l' b r; induction n as [ | n IHn ]; intros l l' b r; simpl; auto.
-    destruct r; auto.
-  Qed.
-
-  Local Fact sbtm_rd_mv_rt_S n l l' b b' r : sbtm_rd (iter (sbtm_mv rt) (S n) (l,b,r)) = sbtm_rd (iter (sbtm_mv rt) (S n) (l',b',r)).
-  Proof.  simpl; destruct r; apply sbtm_rd_mv_rt. Qed.
-
-  Definition Tape_SBTM : TapeSpec.
-  Proof.
-    exists _ sbtm_mv sbtm_rd sbtm_wr.
-    + intros ([],?); simpl; auto.
-    + intros ((l,b),r); simpl; apply bisimilar_refl.
-    + intros ((l,b),r) n [] c; simpl sbtm_wr.
-      * apply sbtm_rd_mv_lft_S.
-      * apply sbtm_rd_mv_rt_S.
-    + intros ([],?) ? ?; simpl; apply bisimilar_refl.
-    + intros ((l,b),[ | x r ]); simpl.
-      2: apply bisimilar_refl.
-      apply bisimilar_sym.
-      rewrite (app_nil_end l) at 2. 
-      apply sbtm_bisim with (n := 0) (m := 1) (r := nil).
-    + intros (([|x l],b),r); simpl.
-      2: apply bisimilar_refl.
-      apply bisimilar_sym.
-      rewrite (app_nil_end r) at 2.
-      apply sbtm_bisim with (m := 0) (n := 1) (l := nil).
-  Defined.
-
-End SBTM.
-
-Section Ztape.
-
-  Implicit Type (t : Z -> bool).
-
-  Definition Ztape_mv d t z := t (match d with lft => Zpred | rt => Zsucc end z).
-  Definition Ztape_rd t := t zero.
-  Definition Ztape_wr b t z := 
-    match z with
-      | zero => b
-      | _    => t z
-    end.
-
-  Infix "~b" := (bisim Ztape_rd Ztape_mv).
-
-  Fact ext_eq_bisim t t' : (forall z, t z = t' z) -> t ~b t'.
-  Proof.
-    intros H l; revert t t' H; induction l as [ | d l IHl ]; intros t t' H.
-    + apply H.
-    + simpl; apply IHl; intros; apply H.
-  Qed.
-
-  Fact Ztape_read_iter_lft n t : Ztape_rd (iter (Ztape_mv lft) (S n) t) = t (neg n).
-  Proof.
-    revert t; induction n as [ | n IHn ]; intros t; auto.
-    rewrite iter_fix, IHn; auto.
-  Qed.
-
-  Fact Ztape_read_iter_rt n t : Ztape_rd (iter (Ztape_mv rt) (S n) t) = t (pos n).
-  Proof.
-    revert t; induction n as [ | n IHn ]; intros t; auto.
-    rewrite iter_fix, IHn; auto.
-  Qed.
-
-  Definition Tape_Z : TapeSpec.
-  Proof.
-    exists _ Ztape_mv Ztape_rd Ztape_wr.
-    + intros; reflexivity.
-    + intros t l.
-      apply ext_eq_bisim.
-      intros []; simpl; auto.
-    + intros t n [] b.
-      * rewrite !Ztape_read_iter_lft; auto.
-      * rewrite !Ztape_read_iter_rt; auto.
-    + intros; apply ext_eq_bisim; intros []; auto.
-    + intros; apply ext_eq_bisim; intros z.
-      unfold Ztape_mv; rewrite Zsucc_pred; auto.
-    + intros; apply ext_eq_bisim; intros z.
-      unfold Ztape_mv; rewrite Zpred_succ; auto.
-  Defined.
-
-End Ztape.
-
-Section Ztape_bounded.
-
-  Definition abs_le z m :=
-    match z with
-      | neg k => S k <= m
-      | zero  =>   0 <= m
-      | pos k => S k <= m
-    end.
-
-  Definition ZB_tape := { t : Z -> bool | exists m, forall z, t z = false \/ abs_le z m }.
-
-  Definition ZBtape_mv (d : dir) : ZB_tape -> ZB_tape.
-  Proof.
-    intros (t & Ht).
-    exists (Ztape_mv d t).
-    destruct Ht as (m & Hm).
-    exists (S m).
-    intros z.
-    destruct d; unfold Ztape_mv.
-    + specialize (Hm (Zpred z)).
-      destruct z as [ n | | [|n] ]; simpl in *; try lia; destruct Hm; auto; lia.
-    + specialize (Hm (Zsucc z)).
-      destruct z as [ [] | | ]; simpl in *; try lia; destruct Hm; auto; lia.
-  Defined.
-
-  Fact ZBtape_mv_eq d t : proj1_sig (ZBtape_mv d t) = Ztape_mv d (proj1_sig t).
-  Proof. destruct t; reflexivity. Qed.
-
-  Definition ZBtape_rd (t : ZB_tape) := Ztape_rd (proj1_sig t).
-
-  Definition ZBtape_wr (b : bool) : ZB_tape -> ZB_tape.
-  Proof.
-    intros (t & Ht).
-    exists (Ztape_wr b t).
-    destruct Ht as (m & Hm).
-    exists m.
-    intros z; destruct (Hm z) as [ H | ]; auto.
-    destruct z; simpl; auto; right; lia.
-  Defined.
-
-  Fact ZBtape_wr_eq b t : proj1_sig (ZBtape_wr b t) = Ztape_wr b (proj1_sig t).
-  Proof. destruct t; reflexivity. Qed.
-
-  Fact ZBtape_iter_eq n d t : proj1_sig ((ZBtape_mv d)↑n t) = (Ztape_mv d)↑n (proj1_sig t).
-  Proof.
-    revert t; induction n as [ | n IHn ]; simpl; auto; intros t; rewrite IHn, ZBtape_mv_eq; auto.
-  Qed.
-
-  Fact ZBtape_moves_eq l t : proj1_sig (ZBtape_mv⇈l t) = Ztape_mv⇈l (proj1_sig t).
-  Proof.
-    revert t; induction l as [ | d l IHl ]; intros t; simpl; auto.
-    rewrite IHl, ZBtape_mv_eq; auto.
-  Qed.
-
-  Fact ZBtape_bisim t1 t2 : bisim ZBtape_rd ZBtape_mv t1 t2
-                        <-> bisim Ztape_rd Ztape_mv (proj1_sig t1) (proj1_sig t2).
-  Proof.
-    split; intros H l; specialize (H l); revert H; unfold ZBtape_rd;
-    rewrite !ZBtape_moves_eq; auto.
-  Qed.
-
-  Definition Tape_ZB : TapeSpec.
-  Proof.
-    exists _ ZBtape_mv ZBtape_rd ZBtape_wr.
-    + intros t b; unfold ZBtape_rd.
-      rewrite ZBtape_wr_eq; apply (@read_write Tape_Z). 
-    + intro t; apply ZBtape_bisim. 
-      rewrite ZBtape_wr_eq.
-      apply (@write_read Tape_Z).
-    + intros t n d b; unfold ZBtape_rd.
-      rewrite !ZBtape_iter_eq, ZBtape_wr_eq.
-      apply (@move_write Tape_Z).
-    + intros t b c; apply ZBtape_bisim.
-      rewrite !ZBtape_wr_eq.
-      apply (@write_write Tape_Z).
-    + intro; apply ZBtape_bisim.
-      rewrite !ZBtape_mv_eq.
-      apply (@left_right Tape_Z).
-    + intro; apply ZBtape_bisim.
-      rewrite !ZBtape_mv_eq.
-      apply (@right_left Tape_Z).
-  Defined.
-
-End Ztape_bounded.
-
 (** This is LPO *)
 
 Definition LPO := forall f : nat -> bool, { n | f n = true } + { forall n, f n = false }.
@@ -1022,23 +404,12 @@ Definition lift_Z (f : nat -> bool) z :=
     | _     => false
   end.
 
-Fact fun_bounded_list X (f : nat -> X) d m : (forall n, f n = d \/ n < m) -> exists l, forall n, f n = nth n l d.
-Proof.
-   revert f; induction m as [ | m IHm ]; intros f Hm.
-   + exists nil; intros n.
-     destruct (Hm n) as [ -> | ]; try lia.
-     destruct n; auto.
-   + destruct IHm with (f := fun n => f (S n)) as (l & Hl).
-     * intros n; destruct (Hm (S n)); auto; lia.
-     * exists ((f 0)::l); intros [ | n ]; auto.
-       apply Hl.
-Qed.
 
 Section SEARCH_LPO.
 
   Hint Resolve bool_dec : core.
 
-  Theorem Coq_dec_SEARCH_SBTM t : Coq_dec (SEARCH rt true Tape_SBTM t).
+  Theorem Coq_dec_SEARCH_SBTM t : Coq_dec (SEARCH rt true SBTM_tape t).
   Proof.
     revert t; intros ((l,b),r); unfold SEARCH.
     destruct b as [].
@@ -1058,7 +429,7 @@ Section SEARCH_LPO.
     now rewrite E in Hn.
   Qed. 
 
-  Theorem Coq_dec_SEARCH_Z_entails_LPO : (forall t, Coq_dec (SEARCH rt true Tape_Z t)) -> LPO.
+  Theorem Coq_dec_SEARCH_Z_entails_LPO : (forall t, Coq_dec (SEARCH rt true Z_tape t)) -> LPO.
   Proof.
     intros H f.
     destruct (H (lift_Z f)) as [ H1 | H1 ]; [ left | right ].
@@ -1070,17 +441,17 @@ Section SEARCH_LPO.
       apply H1; exists (S n); rewrite Ztape_read_iter_rt; auto.
   Qed.
 
-  Theorem Coq_dec_SEARCH_ZB_BLPO : (forall t, Coq_dec (SEARCH rt true Tape_ZB t)) -> BLPO.
+  Theorem Coq_dec_SEARCH_ZB_BLPO : (forall t, Coq_dec (SEARCH rt true ZB_tape t)) -> BLPO.
   Proof.
     intros H f Hf.
-    assert ({ t' : Tape_ZB | proj1_sig t' = lift_Z f}) as (t' & H').
+    assert ({ t' : ZB_tape | proj1_sig t' = lift_Z f}) as (t' & H').
     1: { refine (exist _ (exist _ (lift_Z f) _) eq_refl).
          destruct Hf as (m & Hm).
          exists m; intros [ | | n ]; auto; simpl.
          destruct (le_lt_dec m n); auto. }
     destruct (H t') as [ H1 | H1 ]; [ left | right ].
     + apply minimize in H1 as (n & Hn & _).
-      * unfold Tape_ZB in Hn; simpl in Hn; unfold ZBtape_rd in Hn.
+      * unfold ZB_tape in Hn; simpl in Hn; unfold ZBtape_rd in Hn.
         rewrite ZBtape_iter_eq, H' in Hn.
         destruct n as [ | n ].
         - easy.
@@ -1089,45 +460,28 @@ Section SEARCH_LPO.
       * intros; apply bool_dec.
     + intros n; case_eq (f n); auto; intros Hn; exfalso.
       apply H1; exists (S n).
-      unfold Tape_ZB, read, move, ZBtape_rd.
+      unfold ZB_tape, read, move, ZBtape_rd.
       generalize (f_equal (Ztape_rd) (ZBtape_iter_eq (S n) rt t')).
       rewrite H', Ztape_read_iter_rt; simpl.
       rewrite Hn; intros <-; auto.
   Qed.
 
-  Fact Tape_ZB_SBTM : forall t : tape Tape_ZB, exists t' : tape Tape_SBTM, t ~b t'.
-  Proof.
-     intros (t & m & Hm).
-     destruct (@fun_bounded_list _ (fun n => t (pos n)) false (S m)) as (r & Hr).
-     1:{ intros n; destruct (Hm (pos n)); auto. }
-     destruct (@fun_bounded_list _ (fun n => t (neg n)) false (S m)) as (l & Hl).
-     1:{ intros n; destruct (Hm (neg n)); auto. }
-     exists (l,t zero,r); intros lm.
-     simpl; unfold ZBtape_rd.
-     rewrite ZBtape_moves_eq; simpl.
-     change (read ((@move Tape_Z)⇈lm t) = read ((@move Tape_SBTM)⇈lm (l,t zero, r))).
-     rewrite !bs_read_moves_Z.
-     destruct (moves2Z lm) as [ n | | n ]; unfold Ziter; auto.
-     + rewrite sbtm_rd_mv_lft_nth, Ztape_read_iter_lft; auto.
-     + rewrite sbtm_rd_mv_rt_nth, Ztape_read_iter_rt; auto.
-  Qed.
-
-  Theorem SEARCH_TM : TM_dec_on (SEARCH rt true) Tape_SBTM -> TM_dec_on (SEARCH rt true) Tape_ZB.
+  Theorem SEARCH_TM : TM_dec_on (SEARCH rt true) SBTM_tape -> TM_dec_on (SEARCH rt true) ZB_tape.
   Proof.
     intros (M & s & H1 & H2).
     exists M, s; split; auto.
     + intros t.
-      destruct (Tape_ZB_SBTM t) as (t1 & Ht1).
+      destruct (ZB_tape_bisim_SBTM_tape t) as (t1 & Ht1).
       generalize (H1 t1).
       apply TM_HALT_bisimilar; auto.
     + intros t t' H.
-      destruct (Tape_ZB_SBTM t) as (t1 & Ht1).
+      destruct (ZB_tape_bisim_SBTM_tape t) as (t1 & Ht1).
       destruct TM_compute_bisim with (1 := Ht1) (2 := H)
         as (t1' & H3 & H4).
       apply H2 in H3.
       apply bs_read in H4 as ->.
       rewrite H3; symmetry.
-      split; intros (n & Hn); exists n; revert Hn; intros ->; apply bs_read, bs_moves_dir; auto.
+      split; intros (n & Hn); exists n; revert Hn; intros ->; apply bs_read, bs_iter_move; auto.
       apply bisimilar_sym; auto.
   Qed.
 
@@ -1142,7 +496,7 @@ Section SEARCH_LPO.
 
   Hint Resolve Coq_dec_SEARCH_ZB_BLPO TM_dec_on_Coq_dec SEARCH_TM : core.
 
-  Corollary SEARCH_SBTM_BLPO : TM_dec_on (SEARCH rt true) Tape_SBTM -> BLPO.
+  Corollary SEARCH_SBTM_BLPO : TM_dec_on (SEARCH rt true) SBTM_tape -> BLPO.
   Proof. auto. Qed. 
 
 End SEARCH_LPO.
