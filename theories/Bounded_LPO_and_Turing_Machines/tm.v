@@ -11,7 +11,6 @@ Require Import List Arith Lia Bool.
 
 Set Implicit Arguments.
 
-
 Reserved Notation "x '~b' y" (at level 70, no associativity).
 Reserved Notation "f '↑' n"  (at level 1, left associativity, format "f ↑ n").
 Reserved Notation "m '⇈' l"  (at level 1, left associativity, format "m ⇈ l").
@@ -376,6 +375,9 @@ Section Zmoves.
       * apply bs_moves_dir, bs_move, left_right.
   Qed.
 
+  Fact bs_read_moves_Z l (t : T) : read (move⇈l t) = read (Ziter (move lft) (move rt) (moves2Z l) t).
+  Proof. apply (bs_moves_Z _ _ nil). Qed.
+
 End Zmoves.
 
 Section bs.
@@ -476,6 +478,9 @@ Section TuringMachines.
   Definition TM_halt M s t := exists c, M // (s,t) ~~> c.
   Definition TM_compute M s t t' := exists s', M // (s,t) ~~> (s',t').
 
+  Fact TM_steps_stop_compute M n s t s' t' : M // (s,t) -[n]-> (s',t') -> TM_stop M (s',t') -> TM_compute M s t t'.
+  Proof. exists s'; split; auto; exists n; auto. Qed.
+
   Theorem TM_output_reif M c : 
                ex (TM_output M c) 
             -> { c' : _ & { n | M // c -[n]-> c' /\ TM_stop M c' } }.
@@ -511,6 +516,16 @@ Definition TM_repr (P : TapeProblem) :=
 Definition TM_dec_on (P : TapeProblem) (T : TapeSpec) :=
   { M : _ & { s | (forall t : T, TM_halt M s t) 
                /\ (forall t t', TM_compute M s t t' -> read t' = true <-> P T t) } }.
+
+Definition Coq_dec (P : Prop) := { P } + { ~ P }.
+
+Fact TM_dec_on_Coq_dec P T : TM_dec_on P T -> forall t, Coq_dec (P T t).
+Proof.
+  intros (M & s & H1 & H2) t.
+  destruct TM_output_reif with (1 := H1 t) as ((s',t') & n & H3 & H4).
+  generalize (H2 _ _ (TM_steps_stop_compute _ _ _ H3 H4)).
+  destruct (read t'); intros H; [ left | right ]; rewrite <- H; easy.
+Qed.
 
 Definition SEARCH d b : TapeProblem := fun _ t => exists n, b = read ((move d)↑n t).
 
@@ -755,6 +770,22 @@ Section SBTM.
   Definition sbtm_rd t := let '(_,b,_) := t in b.
   Definition sbtm_wr b t := let '(l,_,r) := t in (l,b,r).
 
+  Fact sbtm_rd_mv_lft_nth n l b r : sbtm_rd ((sbtm_mv lft)↑(S n) (l,b,r)) = nth n l false.
+  Proof.
+    revert l b r.
+    induction n as [ | n IHn ]; intros [ | x l ] b r; simpl nth; auto;
+      rewrite iter_fix; simpl sbtm_mv at 2; rewrite IHn; auto.
+    destruct n; auto.
+  Qed.
+
+  Fact sbtm_rd_mv_rt_nth n l b r : sbtm_rd ((sbtm_mv rt)↑(S n) (l,b,r)) = nth n r false.
+  Proof.
+    revert l b r.
+    induction n as [ | n IHn ]; intros l b [ | x r ]; simpl nth; auto;
+      rewrite iter_fix; simpl sbtm_mv at 2; rewrite IHn; auto.
+    destruct n; auto.
+  Qed.
+
   Infix "~b" := (bisim sbtm_rd sbtm_mv).
 
   Local Fact sbtm_bisim n m l b r : (l,b,r) ~b (l++list_repeat n false,b,r++list_repeat m false).
@@ -952,14 +983,38 @@ Section Ztape_bounded.
 
 End Ztape_bounded.
 
-Check Tape_SBTM.
-Check Tape_Z.
-Check Tape_ZB.
+(** This is LPO *)
+
+Definition LPO := forall f : nat -> bool, { n | f n = true } + { forall n, f n = false }.
+
+(** This is bounded LPO *)
 
 Definition BLPO := forall f : nat -> bool, (exists m, forall n, m <= n -> f n = false)
                                         -> { n | f n = true } + { forall n, f n = false }.
 
-Definition LPO := forall f : nat -> bool, { n | f n = true } + { forall n, f n = false }.
+Section XM_LPO.
+
+  (** * LPO entails BLPO (trivial)
+      * LPO is consistent because it follows from strong XM *)
+
+  Fact LPO_BLPO : LPO -> BLPO.
+  Proof. intros H f _; apply H. Qed.
+
+  Hypothesis XM : forall P : Prop, P + ~ P.
+
+  Fact strong_XM_LPO : LPO.
+  Proof. 
+    intros f.
+    destruct (XM (exists n, f n = true)) as [ H | H ].
+    + apply minimize in H as (n & ? & _).
+      * left; eauto.
+      * intro; apply bool_dec.
+    + right; intros n.
+      case_eq (f n); auto; intros E.
+      destruct H; eauto.
+  Qed.
+
+End XM_LPO.
 
 Definition lift_Z (f : nat -> bool) z :=
   match z with
@@ -967,40 +1022,95 @@ Definition lift_Z (f : nat -> bool) z :=
     | _     => false
   end.
 
+Fact fun_bounded_list X (f : nat -> X) d m : (forall n, f n = d \/ n < m) -> exists l, forall n, f n = nth n l d.
+Proof.
+   revert f; induction m as [ | m IHm ]; intros f Hm.
+   + exists nil; intros n.
+     destruct (Hm n) as [ -> | ]; try lia.
+     destruct n; auto.
+   + destruct IHm with (f := fun n => f (S n)) as (l & Hl).
+     * intros n; destruct (Hm (S n)); auto; lia.
+     * exists ((f 0)::l); intros [ | n ]; auto.
+       apply Hl.
+Qed.
+
 Section SEARCH_LPO.
 
-  Theorem SEARCH_SBTM_dec t : { SEARCH rt true Tape_SBTM t } + { ~ SEARCH rt true _ t }.
+  Hint Resolve bool_dec : core.
+
+  Theorem Coq_dec_SEARCH_SBTM t : Coq_dec (SEARCH rt true Tape_SBTM t).
   Proof.
     revert t; intros ((l,b),r); unfold SEARCH.
-  Admitted.
+    destruct b as [].
+    1:{ left; exists 0; auto. }
+    destruct in_dec with (l := r) (a := true)
+      as [ H1 | H1 ]; auto.
+    1:{ left.
+        destruct In_nth with (1 := H1) (d := false)
+          as (n & H2 & H3).
+        exists (S n).
+        rewrite sbtm_rd_mv_rt_nth; auto. }
+    right.
+    intros ([ |n ] & Hn); apply H1; try easy.
+    rewrite sbtm_rd_mv_rt_nth in Hn.
+    rewrite Hn.
+    destruct (nth_in_or_default n r false) as [ | E ]; auto.
+    now rewrite E in Hn.
+  Qed. 
 
-  Theorem SEARCH_LPO : TM_dec_on (SEARCH rt true) Tape_Z -> LPO.
+  Theorem Coq_dec_SEARCH_Z_entails_LPO : (forall t, Coq_dec (SEARCH rt true Tape_Z t)) -> LPO.
   Proof.
-    intros (M & s & HM) f.
-    destruct (@TM_output_reif Tape_Z M (s,lift_Z f)) as ((s',t') & n & H1 & H2).
-    1: apply HM.
-    assert (@TM_compute Tape_Z M s (lift_Z f) t') as H3.
-    1: exists s'; split; auto; exists n; auto.
-    apply HM in H3.
-    case_eq (read t'); intros H4.
-    + apply H3 in H4.
-      left.
-      apply minimize in H4 as ([|m] & Hm & _).
+    intros H f.
+    destruct (H (lift_Z f)) as [ H1 | H1 ]; [ left | right ].
+    + apply minimize in H1 as ([ | n ] & Hn & _).
       * easy.
-      * exists m; rewrite Hm, Ztape_read_iter_rt; auto.
+      * exists n; rewrite Hn, Ztape_read_iter_rt; auto.
       * intros; apply bool_dec.
-    + right; intros m.
-      case_eq (f m); auto; intros Hm.
-      rewrite <- H4; symmetry.
-      apply H3.
-      exists (S m).
-      rewrite <- Hm, Ztape_read_iter_rt; auto.
+    + intros n; case_eq (f n); auto; intros Hn; exfalso.
+      apply H1; exists (S n); rewrite Ztape_read_iter_rt; auto.
+  Qed.
+
+  Theorem Coq_dec_SEARCH_ZB_BLPO : (forall t, Coq_dec (SEARCH rt true Tape_ZB t)) -> BLPO.
+  Proof.
+    intros H f Hf.
+    assert ({ t' : Tape_ZB | proj1_sig t' = lift_Z f}) as (t' & H').
+    1: { refine (exist _ (exist _ (lift_Z f) _) eq_refl).
+         destruct Hf as (m & Hm).
+         exists m; intros [ | | n ]; auto; simpl.
+         destruct (le_lt_dec m n); auto. }
+    destruct (H t') as [ H1 | H1 ]; [ left | right ].
+    + apply minimize in H1 as (n & Hn & _).
+      * unfold Tape_ZB in Hn; simpl in Hn; unfold ZBtape_rd in Hn.
+        rewrite ZBtape_iter_eq, H' in Hn.
+        destruct n as [ | n ].
+        - easy.
+        - rewrite Ztape_read_iter_rt in Hn.
+          exists n; auto.
+      * intros; apply bool_dec.
+    + intros n; case_eq (f n); auto; intros Hn; exfalso.
+      apply H1; exists (S n).
+      unfold Tape_ZB, read, move, ZBtape_rd.
+      generalize (f_equal (Ztape_rd) (ZBtape_iter_eq (S n) rt t')).
+      rewrite H', Ztape_read_iter_rt; simpl.
+      rewrite Hn; intros <-; auto.
   Qed.
 
   Fact Tape_ZB_SBTM : forall t : tape Tape_ZB, exists t' : tape Tape_SBTM, t ~b t'.
   Proof.
-     intros (t & m & Hm). 
-  Admitted.
+     intros (t & m & Hm).
+     destruct (@fun_bounded_list _ (fun n => t (pos n)) false (S m)) as (r & Hr).
+     1:{ intros n; destruct (Hm (pos n)); auto. }
+     destruct (@fun_bounded_list _ (fun n => t (neg n)) false (S m)) as (l & Hl).
+     1:{ intros n; destruct (Hm (neg n)); auto. }
+     exists (l,t zero,r); intros lm.
+     simpl; unfold ZBtape_rd.
+     rewrite ZBtape_moves_eq; simpl.
+     change (read ((@move Tape_Z)⇈lm t) = read ((@move Tape_SBTM)⇈lm (l,t zero, r))).
+     rewrite !bs_read_moves_Z.
+     destruct (moves2Z lm) as [ n | | n ]; unfold Ziter; auto.
+     + rewrite sbtm_rd_mv_lft_nth, Ztape_read_iter_lft; auto.
+     + rewrite sbtm_rd_mv_rt_nth, Ztape_read_iter_rt; auto.
+  Qed.
 
   Theorem SEARCH_TM : TM_dec_on (SEARCH rt true) Tape_SBTM -> TM_dec_on (SEARCH rt true) Tape_ZB.
   Proof.
@@ -1021,23 +1131,27 @@ Section SEARCH_LPO.
       apply bisimilar_sym; auto.
   Qed.
 
-  Theorem SEARCH_BLPO : TM_dec_on (SEARCH rt true) Tape_ZB -> BLPO.
-  Proof.
-  Admitted.
-
-  (** (P := SEARCH rt true Tape_SBTM) being computed by a Turing machine
-      entails BLPO. Assuming BLPO is not derivable w/o 
-      further axioms, this means that 
+  (** If (P := SEARCH rt true Tape_SBTM) can be computed by a Turing machine
+      then we have BLPO. Assuming BLPO is not derivable w/o further axioms, 
+      this means that we have 
         - P is Coq decidable
-        - one cannot build a Turing machine for deciding P
+        - one cannot build a Turing machine for deciding P (w/o further axioms)
 
       What are the consequence wrt Church thesis ?
     *) 
 
+  Hint Resolve Coq_dec_SEARCH_ZB_BLPO TM_dec_on_Coq_dec SEARCH_TM : core.
+
   Corollary SEARCH_SBTM_BLPO : TM_dec_on (SEARCH rt true) Tape_SBTM -> BLPO.
-  Proof. intro; apply SEARCH_BLPO, SEARCH_TM; auto. Qed.
+  Proof. auto. Qed. 
 
 End SEARCH_LPO.
+
+Check Coq_dec_SEARCH_SBTM.
+Print Assumptions Coq_dec_SEARCH_SBTM.
+
+Check SEARCH_SBTM_BLPO.
+Print Assumptions SEARCH_SBTM_BLPO.
  
 
 
