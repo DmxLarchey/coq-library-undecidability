@@ -129,7 +129,12 @@ Section TPS.
     Implicit Types (A : BI_form µ prop) (Γ : BI_bunch µ prop) (s : prop → M → Prop).
 
     Notation "⟦ A ⟧" := (tps_BI_form s A).
+    Notation "⟦ Γ ⟧ₗ" := (tps_BI_bunch s Γ).
+    Notation "⟪ Γ ⟫" := (BI_bunch_form Γ).
 
+    Fact tps_BI_bunch_form Γ : ⟦Γ⟧ₗ = ⟦⟪Γ⟫⟧.
+    Proof. induction Γ as [ | [] | [] ]; simpl; f_equal; auto. Qed.
+    
     Lemma tps_IL_ax_sound A : IL_axiom A → ∀x, ⟦A⟧ x.
     Proof.
       induction 1 as [ A B | A B C | A B | A B | A B
@@ -196,6 +201,7 @@ Section TPS.
 
     Hint Resolve sem_BI_form_map_id : core.
 
+    (* Generalizes tps_BI_bunch_form when µ is not the full fragment *)
     Fact sem_BI_bunch_form_map Γ :
       ⟦BI_bunch_form (BI_bunch_map µ' (λ _ _, eq_refl) (λ x : prop, x) Γ)⟧ = ⟦Γ⟧ₗ.
     Proof. induction Γ as [ | [] | [] [] ]; simpl; f_equal; auto. Qed. 
