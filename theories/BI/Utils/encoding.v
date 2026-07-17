@@ -42,7 +42,7 @@ Arguments BI_ctx_hole {_ _}.
 (* The (-∗,⇒,⩑,1) fragment of LBI *)
 Definition BI_fragment_impl_conj_unit c :=
   match c with
-  | BI_unit BI_mult => true   (* 1 *)
+(*  | BI_unit BI_mult => true   (* 1 *) *)
   | BI_impl _       => true   (* -∗ and ⇒ *)
   | BI_conj BI_addi => true   (* ⩑ *)
   | _               => false  (* no other connective *)
@@ -57,13 +57,13 @@ Definition BI_fragment_impl_conj_unit c :=
 
 Section pseudo_exponential.
 
-  Variable (prop : Set).
+  Variable (prop : Set) (K : BI_form µ prop).
 
   (* We work in the (-∗,⇒,⩑,1) fragment of BI *)
   Implicit Types (φ : BI_form µ prop) (Γ : BI_bunch µ prop).
 
-  (* We simulate ⊤ using 1⇒1 *)
-  Notation "⊤" := (1⇒1).
+  (* We simulate ⊤ using K⇒K *)
+  Notation "⊤" := (K⇒K).
 
   (** This is the "major breakthrought" that allows for the encoding
       of the dereliction rule in BI, see BI_pseudo_exp_derilection below,
@@ -71,11 +71,11 @@ Section pseudo_exponential.
           The logic of bunched implications is undecidable 
           Galatos, Jipsen, Knudstorp & Ramanayake. arXiv 2026  *)
 
-  Definition BI_pseudo_exp γ φ := (⊤-∗((φ-∗γ)⇒γ))⩑1.
+  Definition BI_pseudo_exp γ φ := (⊤-∗((φ-∗γ)⇒γ))⩑K.
   Notation "![ γ ] φ" := (BI_pseudo_exp γ φ).
 
   (** We study the LBI proof theory of the pseudo-exponential ![γ]φ, 
-      restricted to the (-∗,⇒,⩑,1) cut-free fragment of LBI. *)
+      restricted to the (-∗,⇒,⩑) cut-free fragment of LBI. *)
 
   Hint Constructors LBI_provable BI_bunch_equiv : core.
   Hint Resolve LBI_neut_l : core.
@@ -87,7 +87,7 @@ Section pseudo_exponential.
   (* The "weakening" rule for ![γ]φ *)
 
   Proposition LBI_pseudo_exp_weak Γ γ φ ψ :
-             Γ ⊦ ψ 
+             Γ ⊛ₘ ⟨K⟩ ⊦ ψ 
       (*------------------*)
     →    Γ ⊛ₘ ⟨![γ]φ⟩ ⊦ ψ.
   Proof.
@@ -95,11 +95,9 @@ Section pseudo_exponential.
 
     rule LBI_conj_l at [rt].
     rule LBI_weak at [rt;lft].
-    rule LBI_unit_l at [rt;rt].
 
     revert H; apply LBI_equiv.
-    apply BI_bequiv_trans with (1 := BI_bequiv_sym (BI_bequiv_neut BI_mult _)),
-          BI_bequiv_trans with (1 := BI_bequiv_comm _ _ _); auto. 
+    apply BI_bequiv_congr, BI_bequiv_sym, BI_bequiv_neut.
   Qed.
 
   Hint Resolve LBI_pseudo_exp_weak : core.
@@ -109,13 +107,12 @@ Section pseudo_exponential.
      Notice that ⨂ₘ[A₁;...;Aₙ] := A₁ ⊛ₘ (... ⊛ₘ (Aₙ ⊛ₘ 1)...) *)
   Lemma LBI_list_mult_weak Σ Γ ψ (HΣ : ∀A, A ∊ Σ → ∃ γ φ, A = ![γ]φ) :
 
-             Γ ⊦ ψ 
-    →  (*---------------*)
+          ⨂ₘ (map (λ _, K) Σ) ⊛ₘ Γ ⊦ ψ 
+    →  (*----------------------------------*)
           ⨂ₘ Σ ⊛ₘ Γ ⊦ ψ.
 
   Proof.
     rewrite <- Forall_forall in HΣ.
-    intro.
     induction HΣ as [ | A Σ (γ & φ & ->) _ ]; simpl; eauto.
   Qed.
 
