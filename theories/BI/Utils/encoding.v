@@ -202,6 +202,29 @@ Section pseudo_exponential.
           BI_bequiv_neut.
   Qed.
 
+  Local Proposition LBI_fourth_idea Γ γ φ ψ :
+      Γ ⊦ φ
+    → Γ ⊦ ψ
+    → Γ ⊦ (φ ⇒ ψ ⇒ γ) ⇒ γ.
+  Proof.
+    intros H1 H2.
+    apply LBI_impl_r.
+    rule LBI_cntr at [lft].
+    apply LBI_equiv with (1 := BI_bequiv_sym (BI_bequiv_assoc _ _ _ _)).
+    rule LBI_impl_l at [rt].
+    rule LBI_impl_l at [].
+  Qed.
+
+  Local Proposition LBI_fourth_idea' Γ Δ γ φ ψ :
+      Γ ⊛ₘ Δ ⊦ φ
+    → Γ ⊛ₘ Δ ⊦ ψ
+    → Γ ⊛ₘ ⟨((φ ⇒ ψ ⇒ γ) ⇒ γ) -∗ γ⟩ ⊛ₘ Δ ⊦ γ.
+  Proof.
+    intros H1 H2.
+    apply LBI_impl_middle; auto.
+    now apply LBI_fourth_idea.
+  Qed.
+
   Proposition LBI_pseudo_exp_derilection Γ γ φ :
 
           Γ ⊛ₘ ⟨![γ]φ⟩ ⊛ₘ ⟨φ⟩ ⊦ γ
