@@ -164,6 +164,44 @@ Section pseudo_exponential.
     simpl; rule LBI_impl_l at [rt].
   Qed.
 
+  Definition LBI_pwith γ φ ψ := (((φ-∗γ)⇒γ)⇒((ψ-∗γ)⇒γ)⇒γ)-∗γ.
+
+  Local Proposition LBI_third_idea_l Γ γ φ ψ :
+               Γ ⊛ₘ ⟨φ⟩ ⊦ γ
+    → (*---------------------------*)
+        Γ ⊛ₘ ⟨LBI_pwith γ φ ψ⟩ ⊦ γ.
+  Proof.
+    intros H.
+    unfold LBI_pwith.
+    apply LBI_impl_root.
+    2: apply LBI_axiom.
+    do 2 apply LBI_impl_r.
+    rule LBI_weak at [rt].
+    rule LBI_impl_l at [lft].
+    apply LBI_equiv with ⟨γ⟩; auto.
+    apply BI_bequiv_sym,
+          BI_bequiv_trans with (1 := BI_bequiv_comm _ _ _),
+          BI_bequiv_neut.
+  Qed.
+
+  Local Proposition LBI_third_idea_r Γ γ φ ψ :
+               Γ ⊛ₘ ⟨ψ⟩ ⊦ γ
+    → (*---------------------------*)
+        Γ ⊛ₘ ⟨LBI_pwith γ φ ψ⟩ ⊦ γ.
+  Proof.
+    intros H.
+    unfold LBI_pwith.
+    apply LBI_impl_root.
+    2: apply LBI_axiom.
+    do 2 apply LBI_impl_r.
+    rule LBI_weak at [lft;rt].
+    rule LBI_impl_l at [].
+    apply LBI_equiv with Γ; auto.
+    apply BI_bequiv_sym,
+          BI_bequiv_trans with (1 := BI_bequiv_comm _ _ _),
+          BI_bequiv_neut.
+  Qed.
+
   Proposition LBI_pseudo_exp_derilection Γ γ φ :
 
           Γ ⊛ₘ ⟨![γ]φ⟩ ⊛ₘ ⟨φ⟩ ⊦ γ
