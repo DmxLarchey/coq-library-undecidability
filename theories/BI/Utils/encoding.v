@@ -71,7 +71,7 @@ Section pseudo_exponential.
           The logic of bunched implications is undecidable 
           Galatos, Jipsen, Knudstorp & Ramanayake. arXiv 2026  *)
 
-  Definition BI_pseudo_exp γ φ := (⊤-∗((φ-∗γ)⇒γ))⩑K.
+  Definition BI_pseudo_exp γ φ := (⊤-∗(φ-∗γ)⇒γ)⩑K.
   Notation "![ γ ] φ" := (BI_pseudo_exp γ φ).
 
   (** We study the LBI proof theory of the pseudo-exponential ![γ]φ, 
@@ -178,10 +178,7 @@ Section pseudo_exponential.
     do 2 apply LBI_impl_r.
     rule LBI_weak at [rt].
     rule LBI_impl_l at [lft].
-    apply LBI_equiv with ⟨γ⟩; auto.
-    apply BI_bequiv_sym,
-          BI_bequiv_trans with (1 := BI_bequiv_comm _ _ _),
-          BI_bequiv_neut.
+    apply LBI_equiv with ⟨γ⟩; eauto.
   Qed.
 
   Local Proposition LBI_third_idea_r Γ γ φ ψ :
@@ -196,10 +193,7 @@ Section pseudo_exponential.
     do 2 apply LBI_impl_r.
     rule LBI_weak at [lft;rt].
     rule LBI_impl_l at [].
-    apply LBI_equiv with Γ; auto.
-    apply BI_bequiv_sym,
-          BI_bequiv_trans with (1 := BI_bequiv_comm _ _ _),
-          BI_bequiv_neut.
+    apply LBI_equiv with Γ; eauto.
   Qed.
 
   Local Proposition LBI_fourth_idea Γ γ φ ψ :
@@ -215,14 +209,18 @@ Section pseudo_exponential.
     rule LBI_impl_l at [].
   Qed.
 
-  Local Proposition LBI_fourth_idea' Γ Δ γ φ ψ :
-      Γ ⊛ₘ Δ ⊦ φ
-    → Γ ⊛ₘ Δ ⊦ ψ
-    → Γ ⊛ₘ ⟨((φ ⇒ ψ ⇒ γ) ⇒ γ) -∗ γ⟩ ⊛ₘ Δ ⊦ γ.
+  (* We also need to be able to discard ⟨⊤-∗(φ-∗γ)⇒γ⟩ *)
+  Local Proposition LBI_fifth_idea Γ γ φ :
+           Γ ⊛ₘ ⟨⊤-∗(φ-∗γ)⇒γ⟩ ⊛ₘ ⟨φ⟩ ⊦ γ
+    →  (*-------------------------*)
+            Γ ⊛ₘ ⟨⊤-∗(φ-∗γ)⇒γ⟩ ⊦ γ.
   Proof.
-    intros H1 H2.
-    apply LBI_impl_middle; auto.
-    now apply LBI_fourth_idea.
+    set (Δ := Γ ⊛ₘ ⟨⊤-∗(φ-∗γ)⇒γ⟩).
+    intros H.
+    apply LBI_cntr_root.
+    unfold Δ at 2.
+    rule LBI_impl_l at [rt].
+    now apply LBI_first_idea.
   Qed.
 
   Proposition LBI_pseudo_exp_derilection Γ γ φ :
@@ -277,6 +275,17 @@ Section pseudo_exponential.
     intros.
     apply LBI_impl_middle; auto.
     now apply LBI_cntr_root, LBI_conj_r.
+  Qed.
+
+  (** Alternate encoding w/o ⩑/& *)
+  Local Proposition LBI_fourth_idea' Γ Δ γ φ ψ :
+      Γ ⊛ₘ Δ ⊦ φ
+    → Γ ⊛ₘ Δ ⊦ ψ
+    → Γ ⊛ₘ ⟨((φ⇒ψ⇒γ)⇒γ)-∗γ⟩ ⊛ₘ Δ ⊦ γ.
+  Proof.
+    intros H1 H2.
+    apply LBI_impl_middle; auto.
+    now apply LBI_fourth_idea.
   Qed.
 
   Local Fact LBI_INC Γ Δ φ ψ γ :
