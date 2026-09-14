@@ -82,8 +82,24 @@ Import LBI_tactics.
 Section LBI.
 
   Variables (µ : BI_conn → bool) (prop : Set) (cut : BI_cut).
+ 
+  Implicit Types (A B : BI_form µ prop)
+                 (Σ Θ : BI_ctx µ prop)
+                 (Φ : BI_form µ prop → Prop).
 
-  Implicit Type (Φ : BI_form µ prop → Prop).
+  Hint Constructors BI_bunch_equiv : core.
+
+  Fact BI_bequiv_ctx Σ Γ Δ : Γ ≡ Δ → Σ[Γ] ≡ Σ[Δ].
+  Proof. intro; induction Σ as [ | [] [] ]; simpl; eauto. Qed.
+
+  Fixpoint BI_ctx_compose Σ Θ :=
+    match Σ with
+    | BI_ctx_hole _ _     => Θ
+    | BI_ctx_comp b k Δ Σ => BI_ctx_comp b k Δ (BI_ctx_compose Σ Θ)
+    end.
+
+  Fact BI_ctx_compose_subst Σ Θ Δ : Σ[Θ[Δ]] = (BI_ctx_compose Σ Θ)[Δ].
+  Proof. induction Σ as [ | [] ]; simpl; f_equal; auto. Qed.
 
   Notation "⊥" := (@BI_form_bot _ _ _).
   Notation "⊤" := (@BI_form_unit _ _ BI_addi _).
@@ -96,7 +112,7 @@ Section LBI.
 
   Notation "A '-⊙[' k , e ']' B" := (@BI_form_impl _ _ k e A B) (at level 62, right associativity, format "A -⊙[ k , e ] B").
 
-  Implicit Types (A B : BI_form µ prop).
+
 
   Notation "Σ '⊦' A" := (@LBI_provable µ prop cut Σ A) (at level 70, format "Σ  ⊦  A").
 
