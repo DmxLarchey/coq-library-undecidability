@@ -771,33 +771,6 @@ Section Rel_sem_BI.
 
   Section sem_ctx.
 
-    Fact sem_ctx_lub φ Σ A B (h : µ BI_disj = true) : sem_bunch (sem_form φ) Σ[⟨BI_form_disj h A B⟩] ⊆ sem_bunch (sem_form φ) Σ[⟨A⟩] lub sem_bunch (sem_form φ) Σ[⟨B⟩].
-    Proof using cl_commute_a cl_commute_m cl_idempotent cl_increase cl_monotone cl_stable_a_l cl_stable_m_l.
-      induction Σ as [ | [] [] G D IH ].
-      + simpl; auto.
-      + simpl.
-        apply inc1_trans with (1 := times_monotone _ _ cl_monotone _ _ _ _ _ (inc1_refl _ _) IH).
-        eapply inc1_trans; [ apply times_lub_distrib_r | ]; auto.
-      + simpl.
-        apply inc1_trans with (1 := times_monotone _ _ cl_monotone _ _ _ _ _ (inc1_refl _ _) IH).
-        eapply inc1_trans; [ apply times_lub_distrib_r | ]; auto.
-      + simpl.
-        apply inc1_trans with (1 := times_monotone _ _ cl_monotone _ _ _ _ _ IH (inc1_refl _ _)).
-        eapply inc1_trans; [ apply times_lub_distrib_l | ]; auto.
-      + simpl.
-        apply inc1_trans with (1 := times_monotone _ _ cl_monotone _ _ _ _ _ IH (inc1_refl _ _)).
-        eapply inc1_trans; [ apply times_lub_distrib_l | ]; auto.
-    Qed. 
-
-    Fact sem_ctx_bot φ Σ Δ : sem_bunch φ Δ ⊆ bot → sem_bunch φ Σ[Δ] ⊆ bot.
-    Proof using  cl_commute_a cl_commute_m cl_idempotent cl_increase cl_monotone cl_stable_a_l cl_stable_m_l.
-      intros Hdelta.
-      induction Σ as [ | [] [] G D IH ].
-      1: simpl; auto.
-      1,2: simpl; apply inc1_trans with (1 := times_monotone _ _ cl_monotone _ _ _ _ _ (inc1_refl _ _) IH); apply times_bot_distrib_r; auto.
-      1,2: simpl; apply inc1_trans with (1 := times_monotone _ _ cl_monotone _ _ _ _ _ IH (inc1_refl _ _)); apply times_bot_distrib_l; auto.
-    Qed.
-
     Fact sem_ctx_monotone φ Σ Γ Δ : sem_bunch φ Γ ⊆ sem_bunch φ Δ → sem_bunch φ Σ[Γ] ⊆ sem_bunch φ Σ[Δ].
     Proof using cl_monotone.
       intros H.
@@ -805,7 +778,22 @@ Section Rel_sem_BI.
       1: simpl; auto.
       all: simpl; apply times_monotone; auto.
     Qed.
-    
+
+    Fact sem_ctx_bot φ Σ Δ : sem_bunch φ Δ ⊆ bot → sem_bunch φ Σ[Δ] ⊆ bot.
+    Proof using  cl_commute_a cl_commute_m cl_idempotent cl_increase cl_monotone cl_stable_a_l cl_stable_m_l.
+      intros Hdelta.
+      induction Σ as [ | [] [] G D IH ]; simpl; auto.
+      1,2: apply inc1_trans with (1 := times_monotone _ _ cl_monotone _ _ _ _ _ (inc1_refl _ _) IH); apply times_bot_distrib_r; auto.
+      1,2: apply inc1_trans with (1 := times_monotone _ _ cl_monotone _ _ _ _ _ IH (inc1_refl _ _)); apply times_bot_distrib_l; auto.
+    Qed.
+
+    Fact sem_ctx_lub φ Σ A B (h : µ BI_disj = true) : sem_bunch (sem_form φ) Σ[⟨BI_form_disj h A B⟩] ⊆ sem_bunch (sem_form φ) Σ[⟨A⟩] lub sem_bunch (sem_form φ) Σ[⟨B⟩].
+    Proof using cl_commute_a cl_commute_m cl_idempotent cl_increase cl_monotone cl_stable_a_l cl_stable_m_l.
+      induction Σ as [ | [] [] G D IH ]; simpl; auto.
+      1,2: apply inc1_trans with (1 := times_monotone _ _ cl_monotone _ _ _ _ _ (inc1_refl _ _) IH); eapply inc1_trans; [ apply times_lub_distrib_r | ]; auto.
+      1,2: apply inc1_trans with (1 := times_monotone _ _ cl_monotone _ _ _ _ _ IH (inc1_refl _ _)); eapply inc1_trans; [ apply times_lub_distrib_l | ]; auto.
+    Qed. 
+
   End sem_ctx.
 
   Variables (cut : BI_cut) (φ : prop → M → Prop) (Hφ : ∀v, closed (φ v)).
@@ -846,7 +834,7 @@ Section Rel_sem_BI.
       intros x Hx.
       generalize (cl_cntr x).
       apply times_monotone; auto.
-      all: now intros ? [].
+      all: now intros ? <-.
     + apply inc1_trans with (2 := IH), sem_ctx_monotone; now simpl.
     + apply inc1_trans with (2 := IH), sem_ctx_monotone; now simpl.
     + now simpl.
@@ -887,42 +875,36 @@ Section LBI_cut_elim.
 
   Implicit Types (Γ : M) (X Y : M → Prop).
 
-  (** The key construction of the closure operator: 
-         Γ is in the closure of X if any context,
-         that validates all the members of X also
-              validates Γ 
+  (** The key construction of the closure operator:
+         Γ is in the closure of X if 
+           any context (Σ[_],A) that validates all the members of X 
+           also validates Γ
+
+      The validation relation need to be closed
+      under logical rules but here we simply choose
+      cut free provability L⊦[BI_cut_free]
 
       This generalizes the MacNeille closure over
       arbitrary contexts. Initial ideas in DLW's PhD thesis *)
 
-  Let cl X Γ := ∀ Σ A, (∀Δ, X Δ → Σ[Δ] L⊦[BI_cut_free] A) 
+  Let cl X Γ := ∀ Σ A, (∀Δ, X Δ → Σ[Δ] L⊦[BI_cut_free] A)
                                 → Σ[Γ] L⊦[BI_cut_free] A.
 
   Local Fact cl_increase X : X ⊆ cl X.
   Proof. intros Γ HΓ Σ A H; now apply H. Qed.
 
   Local Fact cl_monotone X Y : X ⊆ Y → cl X ⊆ cl Y.
-  Proof.
-    intros HXY Γ HΓ Σ A H.
-    apply HΓ.
-    intros ? ?%HXY; auto.
-  Qed.
+  Proof. intros HXY Γ HΓ Σ A H; apply HΓ; intros ? ?%HXY; auto. Qed.
 
   Local Fact cl_idempotent X : cl (cl X) ⊆ cl X.
-  Proof.
-    intros Γ HΓ Σ A H; apply HΓ.
-    intros D HD; apply HD; auto.
-  Qed.
+  Proof. intros Γ HΓ Σ A H; apply HΓ; intros D HD; apply HD; auto. Qed.
   
   Hint Resolve cl_monotone cl_increase cl_idempotent : core.
-  
+
   (** The relational bi-monoidal structure *)
 
-  Let comp_m (Γ Δ Θ : M) := Γ ⊛ₘ Δ ≡ Θ.
-  Let comp_a (Γ Δ Θ : M) := Γ ⊛ₐ Δ ≡ Θ.
-
-  Let unit_m : M := øₘ.
-  Let unit_a : M := øₐ.
+  Let comp_m (Γ Δ Θ : M) := Γ ⊛ₘ Δ ≡ Θ.    Let unit_m : M := øₘ.
+  Let comp_a (Γ Δ Θ : M) := Γ ⊛ₐ Δ ≡ Θ.    Let unit_a : M := øₐ.
 
   Notation " x '∘' y" := (Composes _ comp_m x y) (at level 50, no associativity).
   Notation " x '⊸' y " := (Magicwand _ comp_m x y) (at level 51, right associativity).
@@ -941,8 +923,12 @@ Section LBI_cut_elim.
     apply LBI_equiv with (1 := H1); auto.
   Qed.
 
-  (* Stability comes from the identity Σ[Γ ⊛ₘ Δ] = Σ[_ ⊛ₘ Δ][Γ] 
+  (* Stability comes from the identity 
+
+              Σ[Γ ⊛ₘ Δ] = Σ[_ ⊛ₘ Δ][Γ] 
+
      derivable from the composition of contexts *)
+     
   Local Fact cl_stable_m_l X Y : cl X ∘ Y ⊆ cl (X ∘ Y).
   Proof.
     intros _ [ Γ Δ Θ H1 H2 H3 ]; red in H1, H3.
@@ -959,18 +945,12 @@ Section LBI_cut_elim.
   Qed.
 
   Local Fact cl_neutral_1_m Γ : cl (sg eₘ ∘ sg Γ) Γ.
-  Proof.
-    intros Σ A H; apply H.
-    exists øₘ Γ; try red; auto.
-  Qed.
+  Proof. intros Σ A H; apply H; exists øₘ Γ; try red; auto. Qed.
 
   Hint Resolve BI_bequiv_ctx : core.
 
   Local Fact cl_neutral_2_m Γ : sg eₘ ∘ sg Γ ⊆ cl (sg Γ).
-  Proof.
-    intros _ [ ? ? Δ <- <- H].
-    apply cl_bequiv with Γ; eauto.
-  Qed.
+  Proof. intros _ [ ? ? ? <- <- ?]; apply cl_bequiv with Γ; eauto. Qed.
 
   Local Fact cl_commute_m Γ Δ : sg Γ ∘ sg Δ ⊆ cl (sg Δ ∘ sg Γ).
   Proof.
@@ -1073,7 +1053,14 @@ Section LBI_cut_elim.
 
   Hint Resolve sem_bunch_is_closed : core.
 
-  Local Lemma sem_form_Okada A : sem_form A ⟨A⟩ ∧ sem_form A ⊆ dwncl A.
+  (** This is the main insight of Okada's lemma: instead
+      of proving sem_form A = dwncl A as in eg the Lindenbaum
+      construction, we show a weaker form, and this weaker form
+      does NOT require cut for its proof *)
+
+  Local Lemma sem_form_Okada A :
+      sem_form A ⟨A⟩
+    ∧ sem_form A ⊆ dwncl A.
   Proof.
     induction A as [ 
                    | [] Hµ 
