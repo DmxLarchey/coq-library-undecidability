@@ -418,6 +418,7 @@ BI/Utils/hil.v
 BI/Utils/hbi.v
 BI/Utils/encoding.v
 BI/Utils/cutelim.v
+BI/Utils/conservative.v
 BI/Reductions/ACM2_to_BI.v
 
 MuRec/MuRec.v

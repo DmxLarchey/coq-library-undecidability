@@ -12,11 +12,10 @@ From Stdlib Require Import List Utf8.
 From Undecidability.BI
   Require Import BI utils lbi.
 
-Import BI_notations ListNotations LBI_tactics.
+Import ListNotations BI_notations LBI_tactics.
 
 #[local] Notation "X ⊆ Y" := (∀m, X m → Y m) (at level 70, format "X  ⊆  Y", no associativity).
 #[local] Notation "X ≃ Y" := (X ⊆ Y ∧ Y ⊆ X) (at level 70, format "X  ≃  Y", no associativity).
-#[local] Infix "∊" := In (at level 70).
 
 Fact inc1_refl X (A : X → Prop) : A ⊆ A.
 Proof. auto. Qed.
@@ -33,7 +32,7 @@ Proof. tauto. Qed.
 Fact eq1_trans X (A B C : X → Prop) : A ≃ B → B ≃ C → A ≃ C.
 Proof. intros [] [];  split; intros; auto. Qed.
 
-Fact equal_eq1 X (A B : X -> Prop) : A = B → A ≃ B.
+Fact equal_eq1 X (A B : X → Prop) : A = B → A ≃ B.
 Proof. intros []; auto. Qed.
 
 #[local] Notation "A '∩' B" := (λ z, A z ∧ B z) (at level 50, format "A  ∩  B", left associativity).
@@ -659,284 +658,10 @@ Section Relational_phase_semantics.
           inc1_trans with (1 := @times_lub_distrib_l _ _ _); auto.
     apply lub_out; auto.
   Qed.
-
-  Section bang.
-
-    (* J := { x | x ∈ unit ∧ x ∈ x ⊛ x } with unit = cl e and x ⊛ x = cl (x∘x) *)
-
-    Local Definition J x := unit x ∧ (cl (sg x ∘ sg x)) x.
-
-    Local Fact In_J : ∀x, cl (sg e) x → (cl (sg x ∘ sg x)) x → J x.
-    Proof. split; auto. Qed.
-
-    Local Fact J_inv x : J x → unit x ∧ cl (sg x ∘ sg x) x.
-    Proof. auto. Qed.
-
-    Proposition J_inc_unit : J ⊆ unit.
-    Proof. induction 1; trivial. Qed.
-
-    Variable K : M → Prop.
-
-    Abbreviation sub_monoid_hyp_1 := ((cl K) e).
-    Abbreviation sub_monoid_hyp_2 := (K ∘ K ⊆ K).
-    Abbreviation sub_J_hyp := (K ⊆ J).
-
-    Hypothesis sub_monoid_1 : sub_monoid_hyp_1.
-    Hypothesis sub_monoid_2 : sub_monoid_hyp_2.
-    Hypothesis sub_J : sub_J_hyp.
-
-    Proposition K_inc_unit : K ⊆ unit.
-    Proof using sub_J.
-      apply inc1_trans with J; trivial; apply J_inc_unit.
-    Qed.
-
-   (* ⊆ ≃ ∩ ∪ ∘ ⊸ ⊛ ❗ *)
-
-    Proposition K_compose A B : (K ∩ A) ∘ (K ∩ B) ⊆ K ∩ (A ∘ B).
-    Proof using sub_monoid_2.
-      intros x Hx.
-      induction Hx as [ a b c [ ] [ ] Hc ]; split.
-      + apply sub_monoid_2; constructor 1 with a b; auto.
-      + constructor 1 with a b; auto.
-    Qed.
-
-    Local Definition store A := cl (K∩A).
-
-    Notation "! A" := (store A) (at level 40, no associativity, format "! A").
-
-    Fact store_inc_unit A : !A ⊆ unit.
-    Proof using cl_idempotent cl_increase cl_monotone sub_J. 
-      apply inc1_trans with (cl K).
-      + apply cl_monotone; tauto.
-      + apply cl_inc, K_inc_unit.
-    Qed.
-
-    Hint Resolve store_inc_unit : core.
-
-    Proposition closed_store A : closed (!A).
-    Proof using cl_idempotent.
-      simpl; apply cl_idempotent.
-    Qed.
-
-    Proposition store_dec A : closed A → !A ⊆ A.
-    Proof using cl_monotone.
-      intros HA; simpl.
-      apply inc1_trans with (cl A); trivial.
-      apply cl_monotone, glb_out_r.
-    Qed.
-
-    Fact store_monotone A B : A ⊆ B → !A ⊆ !B.
-    Proof using cl_monotone.
-      intro; apply cl_monotone.
-      intros ? []; split; auto.
-    Qed.
-
-    Proposition store_der A B : closed B → !A ⊆ B → !A ⊆ !B.
-    Proof using cl_increase cl_monotone.
-      unfold store.
-      intros ? ?; apply cl_monotone; intros x []; split; auto.
-    Qed.
  
-    Proposition store_unit_1 : unit ⊆ !top.
-    Proof using cl_idempotent cl_increase cl_monotone sub_monoid_1.
-      apply cl_inc.
-      intros ? []; apply cl_monotone with K; auto.
-    Qed.
-
-    Hint Resolve J_inc_unit : core.
- 
-    Proposition store_unit_2 : !top ⊆ unit.
-    Proof using cl_idempotent cl_increase cl_monotone sub_J.
-      apply cl_inc; trivial.
-      apply inc1_trans with J; auto.
-      intros ? []; auto.
-    Qed.
-
-    Hint Resolve store_unit_1 store_unit_2 : core.
-
-    Proposition store_unit : unit ≃ !top.
-    Proof using cl_idempotent cl_increase cl_monotone sub_J sub_monoid_1.
-      split; auto.
-    Qed.
-
-    (* ⊆ ≃ ∩ ∪ ∘ ⊸ ⊛ *)
-
-    Proposition store_comp A B : closed A → closed B → !A ⊛ !B ≃ !(A∩B).
-    Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_neutral_2 cl_stable_l sub_J sub_monoid_2.
-      intros HA HB; split.
-      + apply inc1_trans with (cl ((K glb A) ∘ (K glb B))).
-        * apply cl_inc; trivial; apply cl_stable.
-        * apply cl_monotone.
-          intros x [ a b c [ H1 H2 ] [ H3 H4 ] Hc ].
-          assert (H5 : unit a). { apply K_inc_unit; auto. }
-          assert (H6 : unit b). { apply K_inc_unit; auto. }
-          split; [ | split ].
-          - apply sub_monoid_2; constructor 1 with a b; auto.
-          - apply unit_neutral_1; auto; apply times_commute_1, cl_increase.
-            constructor 1 with a b; auto.
-          - apply unit_neutral_1; auto; apply cl_increase.
-            constructor 1 with a b; auto.
-      + apply cl_inc; trivial.
-        intros x (H1 & H2 & H3).
-        apply cl_monotone with (sg x ∘ sg x).
-        2: { apply sub_J in H1; destruct H1; trivial. }
-        intros d [ a b ? ? Hab ]; subst a b; constructor 1 with x x; auto; 
-          apply cl_increase; auto.
-    Qed.
-
-    Let ltimes := fold_right (λ x y, x ⊛ y) unit.
-
-    Proposition ltimes_store ll : Forall closed ll → ltimes (map store ll) ≃ !(lcap ll).
-    Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_neutral_2 cl_stable_l lcap ltimes sub_J sub_monoid_1 sub_monoid_2.
-      unfold ltimes, lcap.
-      induction 1 as [ | A ll H1 H2 IH2 ]; auto.
-      + simpl; auto.
-      + simpl.
-        apply eq1_trans with (!A ⊛ !(lcap ll)).
-        * apply times_congruence; auto.
-        * apply eq1_trans with (!(A ∩ lcap ll)); auto.
-          apply store_comp; auto.
-    Qed.
-
-    Proposition store_compose_idem A : closed A → !A ⊆ !A⊛!A.
-    Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_neutral_2 cl_stable_l lcap sub_J sub_monoid_2.
-      intros HA.
-      apply inc1_trans with (!(A∩A)).
-      + apply store_der. 
-        * apply closed_glb; trivial.
-        * apply inc1_trans with A.
-          - apply store_dec; trivial.
-          - tauto.
-      + apply (proj2 (store_comp _ _ HA HA)).
-    Qed.
-
-  End bang.
-
-  Section Intuitionist.
-  
-    Hypothesis cl_weak : ∀x, cl (sg e) x.
-    Hypothesis cl_cntr : ∀x, cl (sg x ∘ sg x) x. 
-
-    Let K := top.
-
-    Local Fact sub_monoid_1 : cl K e.
-    Proof using cl_increase.
-      apply cl_increase; now red.
-    Qed.
-
-    Local Fact sub_monoid_2 : K ∘ K ⊆ K.
-    Proof. now unfold K. Qed.
-
-    Local Fact sub_J : K ⊆ J.
-    Proof using cl_weak cl_cntr.
-      split; auto.
-    Qed.
-    
-    Hint Resolve sub_monoid_1 sub_monoid_2 sub_J : core.
-
-    Local Fact K_inc_unit' : K ⊆ unit.
-    Proof using cl_cntr cl_weak. apply K_inc_unit, sub_J. Qed.
-
-    Local Fact store_inc A : A ⊆ store K A.
-    Proof using cl_increase. 
-      unfold store, K.
-      apply inc1_trans with (2 := cl_increase _); auto.
-    Qed.
-
-    Local Fact store_eq1 A : closed A → A ≃ store K A.
-    Proof using cl_increase cl_monotone.
-      intros HA; split; auto using store_inc.
-      now apply store_dec.
-    Qed.
-
-    Local Fact times_id_glb A B : closed A → closed B → A ⊛ B ≃ A glb B.
-    Proof using cl_cntr cl_commute cl_idempotent cl_increase cl_monotone cl_neutral_2 cl_stable_l cl_weak.
-      intros HA HB.
-      apply eq1_trans with (store K A ⊛ store K B).
-      1: auto using times_congruence, store_eq1.
-      apply eq1_trans with (store K (A glb B)).
-      1: auto using store_comp.
-      auto using store_eq1, eq1_sym.
-    Qed.
-
-(*
-    Proposition times_leq_glb A B : closed A -> closed B -> A times B inc A glb B.
-    Proof. intros A B HA HB. apply (proj1 (times_id_glb _ _ HA HB)). Qed.
-
-    Proposition glb_leq_times A B : closed A -> closed B -> A glb B inc A times B.
-    Proof. intros A B HA HB. apply (proj2 (times_id_glb _ _ HA HB)). Qed.
-
-    Hint Resolve times_leq_glb glb_leq_times.
-    *)
-
-(*
-    Proposition top_neutral A : top glb A ≃ A.
-    Proof. split; auto. Qed.
-
-    Proposition top_neutral_1 A : closed A -> top glb A inc A.
-    Proof. intros. auto. Qed.
-
-    Proposition glb_monotone (A A' B B' : Predicate M) : A inc A' -> B inc B' -> A glb B inc A' glb B'.
-    Proof. intros. auto. Qed.
-
-    Proposition lub_monotone (A A' B B' : Predicate M) : A inc A' -> B inc B' -> A lub B inc A' lub B'.
-    Proof. intros. auto. Qed.
-
-    Proposition glb_commute (A B : Predicate M) : A glb B ~ B glb A.
-    Proof. split; auto. Qed.
-
-    Proposition glb_associative (A B C : Predicate M) : (A glb B) glb C ~ A glb (B glb C).
-    Proof. split; auto. Qed.
-
-    Proposition glb_congruence (A A' B B' : Predicate M) : A ~ A' -> B ~ B' -> A glb B ~ A' glb B'.
-    Proof. intros A A' B B' (H1,H2) (H3,H4). split; auto. Qed.
-
-    Proposition glb_adjunction_1 A B C : closed A -> closed B -> closed C -> A glb B inc C -> A inc B -o C.
-    Proof.
-      intros A B C HA HB HC H. 
-      apply magicwand_adj_1. 
-      apply inc_transitive with (2 := H).
-      auto.
-    Qed.
-
-    Proposition glb_adjunction_2 A B C : closed A -> closed B -> closed C -> A inc B -o C -> A glb B inc C.
-    Proof.
-      intros A B C HA HB HC H. 
-      apply magicwand_adj_2 in H.  
-      apply (cl_inc_1 _ Closure) in H; auto.
-      apply inc_transitive with (2 := H).
-      auto.
-    Qed.
-
-    Hint Resolve glb_adjunction_1 glb_adjunction_2 : core.
- 
-    Proposition glb_adjunction A B C : closed A -> closed B -> closed C -> (A glb B inc C <-> A inc B -o C).
-    Proof. split; auto. Qed.
-
-    Proposition glb_bot_distrib_l A : bot glb A inc bot.
-    Proof.  intros. auto. Qed. 
-
-    Proposition glb_bot_distrib_r A : A glb bot inc bot.
-    Proof. intros. auto. Qed.
-
-    Proposition glb_lub_distrib_l A B C : closed A -> closed B -> closed C -> (A lub B) glb C inc (A glb C) lub (B glb C).
-    Proof. intros. apply (inc_transitive _ ((A lub B) times C)); auto. Qed.
- 
-    Proposition glb_lub_distrib_r A B C : closed A -> closed B -> closed C -> C glb (A lub B) inc (C glb A) lub (C glb B).
-    Proof.
-      intros.
-      apply (inc_transitive _ ((A lub B) glb C)); auto.
-      apply (inc_transitive _ ((A glb C) lub (B glb C))); auto.
-      apply cl_mono. auto.
-    Qed.
-
-  *)
-  End Intuitionist.
-
-
 End Relational_phase_semantics.
 
-Section Sem_BI.
+Section Rel_sem_BI.
 
   Variables (M : Type) (cl : (M → Prop) → (M → Prop)).
 
@@ -969,44 +694,33 @@ Section Sem_BI.
   Hypothesis cl_commute_a : ∀ x y, sg x ⨣ sg y ⊆ cl (sg y ⨣ sg x).
   Hypothesis cl_associative_a : ∀ x y z, sg x ⨣ (sg y ⨣ sg z) ⊆ cl ((sg x ⨣ sg y) ⨣ sg z).
 
-  Notation "x 'glb' y" := (x ∩ y) (at level 50, no associativity).
   Notation "x 'lub' y" := (cl (x ∪ y)) (at level 50, no associativity).
-  
-  Abbreviation top := (λ _ : M, True).
   Abbreviation bot := (cl (λ _, False)).
-  Abbreviation unit := (cl (sg eₘ)). 
-  
+
   Hypothesis cl_weak : ∀x, cl (sg eₐ) x.
   Hypothesis cl_cntr : ∀x, cl (sg x ⨣ sg x) x.
-  
-  Fact compose_eq1_glb A B : closed A → closed B → cl (A ⨣ B) ≃ A glb B.
-  Proof using cl_cntr cl_commute_a cl_idempotent cl_increase cl_monotone cl_neutral_2_a cl_stable_a_l cl_weak.
-    apply times_id_glb with eₐ; auto.
-  Qed.
 
   Variables (µ : BI_conn → bool) (prop : Set).
 
   Section sem_form.
 
-    Variable phi : prop → M → Prop.
+    Variables (φ : prop → M → Prop) (Hφ: ∀v, closed (φ v)).
 
-    Hypothesis phi_closed : ∀v, closed (phi v).
-
-    Fixpoint sem_form (f : BI_form µ prop) { struct f } : M → Prop :=
-      match f with
-      | BI_form_var _ v => phi v
+    Fixpoint sem_form (A : BI_form µ prop) { struct A } : M → Prop :=
+      match A with
+      | BI_form_var _ v            => φ v
       | BI_form_unit _ _ BI_mult _ => cl (sg eₘ)
       | BI_form_unit _ _ BI_addi _ => cl (sg eₐ)
       | BI_form_conj BI_mult _ a b => cl (sem_form a ∘ sem_form b)
       | BI_form_conj BI_addi _ a b => cl (sem_form a ⨣ sem_form b)
       | BI_form_impl BI_mult _ a b => sem_form a ⊸ sem_form b
       | BI_form_impl BI_addi _ a b => sem_form a -⨣ sem_form b
-      | BI_form_bot  _ _ _ => bot
-      | BI_form_disj _ a b => sem_form a lub sem_form b
+      | BI_form_bot  _ _ _         => bot
+      | BI_form_disj _ a b         => sem_form a lub sem_form b
       end.
-      
+
     Fact sem_form_closed f : closed (sem_form f).
-    Proof using cl_idempotent cl_increase cl_monotone cl_stable_a_l cl_stable_m_l cl_weak comp_a comp_m phi_closed.
+    Proof using cl_idempotent cl_increase cl_monotone cl_stable_a_l cl_stable_m_l cl_weak Hφ.
       induction f as [ | [] | [] | [] | | ]; simpl; eauto using closed_magicwand.
     Qed.
 
@@ -1014,54 +728,50 @@ Section Sem_BI.
 
   Section sem_bunch.
 
-    Definition sem_bunch phi :=
-      fix loop (b : BI_bunch µ prop) : M → Prop :=
-        match b with
-        | ⟨A⟩ => phi A
-        | øₘ => cl (sg eₘ)
-        | øₐ => cl (sg eₐ)
-        | Γ ⊛ₘ Δ => cl (loop Γ ∘ loop Δ)
-        | Γ ⊛ₐ Δ => cl (loop Γ ⨣ loop Δ)
-        end.
+    Variables (φ : BI_form µ prop → M → Prop) (Hφ : ∀A, closed (φ A)).
 
-    Fact sem_bunch_closed phi : (∀f, closed (phi f)) → (∀f, closed (sem_bunch phi f)).
-    Proof using cl_idempotent cl_monotone.
+    Fixpoint sem_bunch Θ : M → Prop :=
+      match Θ with
+      | ⟨A⟩ => φ A
+      | øₘ => cl (sg eₘ)
+      | øₐ => cl (sg eₐ)
+      | Γ ⊛ₘ Δ => cl (sem_bunch Γ ∘ sem_bunch Δ)
+      | Γ ⊛ₐ Δ => cl (sem_bunch Γ ⨣ sem_bunch Δ)
+      end.
+
+    Fact sem_bunch_closed Θ : closed (sem_bunch Θ).
+    Proof using cl_idempotent cl_monotone Hφ.
       clear cl_weak.
-      intros ? f; induction f as [ | [] | [] ]; simpl; eauto.
+      induction Θ as [ | [] | [] ]; simpl; eauto.
     Qed.
 
     Hint Resolve sem_bunch_closed : core.
+    Hint Resolve eq1_refl eq1_sym eq1_trans unit_neutral : core.
 
-    Section bunch_eq_soundness.
+    Fact sem_bunch_soundness Γ Δ : Γ ≡ Δ → sem_bunch Γ ≃ sem_bunch Δ.
+    Proof using cl_associative_a cl_associative_m 
+                cl_commute_a cl_commute_m 
+                cl_idempotent cl_increase cl_monotone
+                cl_neutral_1_a cl_neutral_1_m 
+                cl_neutral_2_a cl_neutral_2_m
+                cl_stable_a_l cl_stable_m_l
+                Hφ.
+      induction 1 as [ | | | [] | [] | [] | [] ]; eauto.
+      + apply unit_neutral; auto.
+      + apply unit_neutral; auto.
+      + apply times_commute; auto.
+      + apply times_commute; auto.
+      + apply times_associative; auto.
+      + apply times_associative; auto.
+      + apply times_congruence; auto.
+      + apply times_congruence; auto.
+    Qed.
 
-      Variable phi : BI_form µ prop → M → Prop.
-      Hypothesis phi_closed : ∀A, closed (phi A).
+  End sem_bunch.
 
-      Hint Resolve eq1_refl eq1_sym eq1_trans unit_neutral : core.
+  Section sem_ctx.
 
-      Lemma sem_bunch_soundness Γ Δ : Γ ≡ Δ → sem_bunch phi Γ ≃ sem_bunch phi Δ.
-      Proof using cl_associative_a cl_associative_m 
-                  cl_commute_a cl_commute_m 
-                  cl_idempotent cl_increase cl_monotone
-                  cl_neutral_1_a cl_neutral_1_m 
-                  cl_neutral_2_a cl_neutral_2_m
-                  cl_stable_a_l 
-                  cl_stable_m_l
-                  phi_closed.
-        induction 1 as [ | | | [] | [] | [] | [] ]; eauto.
-        + apply unit_neutral; auto.
-        + apply unit_neutral; auto.
-        + apply times_commute; auto.
-        + apply times_commute; auto.
-        + apply times_associative; auto.
-        + apply times_associative; auto.
-        + apply times_congruence; auto.
-        + apply times_congruence; auto.
-      Qed.
-
-    End bunch_eq_soundness.
-
-    Fact sem_ctx_lub phi Σ A B (h : µ BI_disj = true) : sem_bunch (sem_form phi) Σ[⟨BI_form_disj h A B⟩] ⊆ sem_bunch (sem_form phi) Σ[⟨A⟩] lub sem_bunch (sem_form phi) Σ[⟨B⟩].
+    Fact sem_ctx_lub φ Σ A B (h : µ BI_disj = true) : sem_bunch (sem_form φ) Σ[⟨BI_form_disj h A B⟩] ⊆ sem_bunch (sem_form φ) Σ[⟨A⟩] lub sem_bunch (sem_form φ) Σ[⟨B⟩].
     Proof using cl_commute_a cl_commute_m cl_idempotent cl_increase cl_monotone cl_stable_a_l cl_stable_m_l.
       induction Σ as [ | [] [] G D IH ].
       + simpl; auto.
@@ -1079,7 +789,7 @@ Section Sem_BI.
         eapply inc1_trans; [ apply times_lub_distrib_l | ]; auto.
     Qed. 
 
-    Fact sem_ctx_bot phi Σ Δ : sem_bunch phi Δ ⊆ bot → sem_bunch phi Σ[Δ] ⊆ bot.
+    Fact sem_ctx_bot φ Σ Δ : sem_bunch φ Δ ⊆ bot → sem_bunch φ Σ[Δ] ⊆ bot.
     Proof using  cl_commute_a cl_commute_m cl_idempotent cl_increase cl_monotone cl_stable_a_l cl_stable_m_l.
       intros Hdelta.
       induction Σ as [ | [] [] G D IH ].
@@ -1088,9 +798,7 @@ Section Sem_BI.
       1,2: simpl; apply inc1_trans with (1 := times_monotone _ _ cl_monotone _ _ _ _ _ IH (inc1_refl _ _)); apply times_bot_distrib_l; auto.
     Qed.
 
-    Fact sem_ctx_monotone phi Σ Γ Δ :
-        sem_bunch phi Γ ⊆ sem_bunch phi Δ
-      → sem_bunch phi Σ[Γ] ⊆ sem_bunch phi Σ[Δ].
+    Fact sem_ctx_monotone φ Σ Γ Δ : sem_bunch φ Γ ⊆ sem_bunch φ Δ → sem_bunch φ Σ[Γ] ⊆ sem_bunch φ Σ[Δ].
     Proof using cl_monotone.
       intros H.
       induction Σ as [ | [] [] ].
@@ -1098,13 +806,13 @@ Section Sem_BI.
       all: simpl; apply times_monotone; auto.
     Qed.
     
-  End sem_bunch.
+  End sem_ctx.
 
-  Variables (cut : BI_cut) (phi : prop → M → Prop) (phi_closed : ∀v, closed (phi v)).
- 
+  Variables (cut : BI_cut) (φ : prop → M → Prop) (Hφ : ∀v, closed (φ v)).
+
   Hint Resolve sem_form_closed : core.
-  
-  Theorem LBI_soundness Γ A : Γ L⊦[cut] A → sem_bunch (sem_form phi) Γ ⊆ sem_form phi A.
+
+  Theorem LBI_soundness Γ A : Γ L⊦[cut] A → sem_bunch (sem_form φ) Γ ⊆ sem_form φ A.
   Proof using cl_idempotent cl_increase cl_monotone 
               cl_neutral_1_a cl_neutral_1_m 
               cl_neutral_2_a cl_neutral_2_m
@@ -1112,7 +820,7 @@ Section Sem_BI.
               cl_commute_a cl_commute_m 
               cl_stable_a_l cl_stable_m_l
               cl_cntr cl_weak
-              phi_closed.
+              Hφ.
     induction 1 as [ 
                      | ? Γ Δ A B _ IH1 _ IH2 
                      | Γ Δ A H _ IH
@@ -1168,24 +876,27 @@ Section Sem_BI.
     + simpl; apply inc1_trans with (1 := IH), lub_in_r; auto.
   Qed.
 
-End Sem_BI.
+End Rel_sem_BI.
 
-Section cut_elim.
+Section LBI_cut_elim.
 
   Variables (µ : BI_conn → bool) (prop : Set).
 
+  (* We consider bunches as a monoidal model for BI *)
   Let M := BI_bunch µ prop.
 
   Implicit Types (Γ : M) (X Y : M → Prop).
 
-  Let cl X Γ := ∀ Σ A, (∀Δ, X Δ → Σ[Δ] L⊦[BI_cut_free] A) → Σ[Γ] L⊦[BI_cut_free] A.
-  
-  Local Fact cl_bequiv X Γ Δ : Γ ≡ Δ → cl X Γ → cl X Δ.
-  Proof.
-    intros H1 H2 Σ A H3.
-    apply BI_bequiv_ctx with (Σ := Σ) in H1.
-    apply LBI_equiv with (1 := H1); auto.
-  Qed.
+  (** The key construction of the closure operator: 
+         Γ is in the closure of X if any context,
+         that validates all the members of X also
+              validates Γ 
+
+      This generalizes the MacNeille closure over
+      arbitrary contexts. Initial ideas in DLW's PhD thesis *)
+
+  Let cl X Γ := ∀ Σ A, (∀Δ, X Δ → Σ[Δ] L⊦[BI_cut_free] A) 
+                                → Σ[Γ] L⊦[BI_cut_free] A.
 
   Local Fact cl_increase X : X ⊆ cl X.
   Proof. intros Γ HΓ Σ A H; now apply H. Qed.
@@ -1204,6 +915,8 @@ Section cut_elim.
   Qed.
   
   Hint Resolve cl_monotone cl_increase cl_idempotent : core.
+  
+  (** The relational bi-monoidal structure *)
 
   Let comp_m (Γ Δ Θ : M) := Γ ⊛ₘ Δ ≡ Θ.
   Let comp_a (Γ Δ Θ : M) := Γ ⊛ₐ Δ ≡ Θ.
@@ -1221,19 +934,27 @@ Section cut_elim.
   
   Hint Constructors BI_bunch_equiv Composes : core.
 
+  Local Fact cl_bequiv X Γ Δ : Γ ≡ Δ → cl X Γ → cl X Δ.
+  Proof.
+    intros H1 H2 Σ A H3.
+    apply BI_bequiv_ctx with (Σ := Σ) in H1.
+    apply LBI_equiv with (1 := H1); auto.
+  Qed.
+
+  (* Stability comes from the identity Σ[Γ ⊛ₘ Δ] = Σ[_ ⊛ₘ Δ][Γ] 
+     derivable from the composition of contexts *)
   Local Fact cl_stable_m_l X Y : cl X ∘ Y ⊆ cl (X ∘ Y).
   Proof.
-    intros _ [ Γ Δ Θ H1 H2 H3 ] Σ A H; red in H3.
-    apply BI_bequiv_ctx with (Σ := Σ) in H3.
-    apply LBI_equiv with (1 := H3).
-    red in H1.
+    intros _ [ Γ Δ Θ H1 H2 H3 ]; red in H1, H3.
+    apply cl_bequiv with (1 := H3).
+    intros Σ A HA.
     change (Σ[Γ ⊛ₘ Δ])
     with    (Σ[(BI_ctx_comp BI_right BI_mult Δ (BI_ctx_hole _ _))[Γ]]).
     rewrite BI_ctx_compose_subst.
     apply H1.
     intros D HD.
     rewrite <- BI_ctx_compose_subst; simpl.
-    apply H.
+    apply HA.
     exists D Δ; try red; auto.
   Qed.
 
@@ -1242,7 +963,7 @@ Section cut_elim.
     intros Σ A H; apply H.
     exists øₘ Γ; try red; auto.
   Qed.
-  
+
   Hint Resolve BI_bequiv_ctx : core.
 
   Local Fact cl_neutral_2_m Γ : sg eₘ ∘ sg Γ ⊆ cl (sg Γ).
@@ -1250,7 +971,7 @@ Section cut_elim.
     intros _ [ ? ? Δ <- <- H].
     apply cl_bequiv with Γ; eauto.
   Qed.
-  
+
   Local Fact cl_commute_m Γ Δ : sg Γ ∘ sg Δ ⊆ cl (sg Δ ∘ sg Γ).
   Proof.
     intros _ [ ? ? Θ <- <- H ].
@@ -1268,7 +989,7 @@ Section cut_elim.
       exists (Γ ⊛ₘ Δ) Θ; try red; auto.
       exists Γ Δ; try red; auto.
   Qed.
-  
+
   Local Fact cl_stable_a_l X Y : cl X ⨣ Y ⊆ cl (X ⨣ Y).
   Proof.
     intros _ [ Γ Δ Θ H1 H2 H3 ] Σ A H; red in H3.
@@ -1290,13 +1011,13 @@ Section cut_elim.
     intros Σ A H; apply H.
     exists øₐ Γ; try red; auto.
   Qed.
-  
+
   Local Fact cl_neutral_2_a Γ : sg eₐ ⨣ sg Γ ⊆ cl (sg Γ).
   Proof.
     intros _ [ ? ? Δ <- <- H].
     apply cl_bequiv with Γ; eauto.
   Qed.
-  
+
   Local Fact cl_commute_a Γ Δ : sg Γ ⨣ sg Δ ⊆ cl (sg Δ ⨣ sg Γ).
   Proof.
     intros _ [ ? ? Θ <- <- H ].
@@ -1324,25 +1045,23 @@ Section cut_elim.
     apply LBI_cntr, H.
     exists Γ Γ; try red; auto.
   Qed.
-  
-  Let dwncl A Γ := Γ L⊦[BI_cut_free] A.  
-  Let sem_form :=  sem_form _ cl comp_m unit_m comp_a unit_a µ prop (fun x => dwncl (BI_form_var µ x)).
+
+  Let dwncl A Γ := Γ L⊦[BI_cut_free] A.
+  Abbreviation φ  := (λ v, dwncl (BI_form_var µ v)).
+  Let sem_form :=  sem_form  _ cl comp_m unit_m comp_a unit_a µ _ φ.
   Let sem_bunch := sem_bunch _ cl comp_m unit_m comp_a unit_a _ _ sem_form.
 
   Local Fact dwncl_closed A : cl (dwncl A) ⊆ dwncl A.
-  Proof.
-    intros G H1.
-    apply (H1 (BI_ctx_hole _ _)); simpl; auto.
-  Qed.
+  Proof. intros ? H; apply (H (BI_ctx_hole _ _)); simpl; auto. Qed.
 
   Hint Resolve cl_idempotent cl_increase cl_monotone 
-              cl_neutral_1_a cl_neutral_1_m 
-              cl_neutral_2_a cl_neutral_2_m
-              cl_associative_a cl_associative_m
-              cl_commute_a cl_commute_m 
-              cl_stable_a_l cl_stable_m_l
-              cl_cntr cl_weak 
-              dwncl_closed : core.
+               cl_neutral_1_a cl_neutral_1_m 
+               cl_neutral_2_a cl_neutral_2_m
+               cl_associative_a cl_associative_m
+               cl_commute_a cl_commute_m 
+               cl_stable_a_l cl_stable_m_l
+               cl_cntr cl_weak 
+               dwncl_closed : core.
 
   Local Fact sem_form_is_closed A : cl (sem_form A) ⊆ sem_form A.
   Proof. apply sem_form_closed; eauto. Qed.
@@ -1421,22 +1140,20 @@ Section cut_elim.
 
   Local Corollary sem_bunch_Okada Γ : sem_bunch Γ Γ.
   Proof.
-    induction Γ as [ | [] | [] ]; simpl.
+    induction Γ as [ | [] | [] ]; simpl; eauto using cl_increase.
     + apply sem_form_Okada.
-    + apply cl_increase; auto.
-    + apply cl_increase; auto.
-    + apply cl_increase; exists Γ1 Γ2; red; auto.
+    + apply cl_increase. exists Γ1 Γ2; red; auto.
     + apply cl_increase; exists Γ1 Γ2; red; auto.
   Qed.
 
   Theorem LBI_cut_elim cut Γ A : Γ L⊦[cut] A → Γ L⊦[BI_cut_free] A.
   Proof.
-    intros H.
+    intros HA.
     cut (sem_bunch Γ ⊆ sem_form A).
-    + intros H1; apply sem_form_Okada, H1, sem_bunch_Okada.
-    + revert H; apply LBI_soundness; eauto.
+    + intros H; apply sem_form_Okada, H, sem_bunch_Okada.
+    + revert A HA; apply LBI_soundness; eauto.
   Qed.
 
-End cut_elim.
+End LBI_cut_elim.
 
 Check LBI_cut_elim. 
