@@ -1170,8 +1170,6 @@ Section Sem_BI.
 
 End Sem_BI.
 
-Check LBI_soundness.
-
 Section cut_elim.
 
   Variables (µ : BI_conn → bool) (prop : Set).
@@ -1182,7 +1180,7 @@ Section cut_elim.
 
   Let cl X Γ := ∀ Σ A, (∀Δ, X Δ → Σ[Δ] L⊦[BI_cut_free] A) → Σ[Γ] L⊦[BI_cut_free] A.
   
-  Local Fact cl_equiv X Γ Δ : Γ ≡ Δ → cl X Γ → cl X Δ.
+  Local Fact cl_bequiv X Γ Δ : Γ ≡ Δ → cl X Γ → cl X Δ.
   Proof.
     intros H1 H2 Σ A H3.
     apply BI_bequiv_ctx with (Σ := Σ) in H1.
@@ -1250,13 +1248,13 @@ Section cut_elim.
   Local Fact cl_neutral_2_m Γ : sg eₘ ∘ sg Γ ⊆ cl (sg Γ).
   Proof.
     intros _ [ ? ? Δ <- <- H].
-    apply cl_equiv with Γ; eauto.
+    apply cl_bequiv with Γ; eauto.
   Qed.
   
   Local Fact cl_commute_m Γ Δ : sg Γ ∘ sg Δ ⊆ cl (sg Δ ∘ sg Γ).
   Proof.
     intros _ [ ? ? Θ <- <- H ].
-    apply cl_equiv with (Δ ⊛ₘ Γ); eauto.
+    apply cl_bequiv with (Δ ⊛ₘ Γ); eauto.
     apply cl_increase; eauto.
     exists Δ Γ; try red; auto.
   Qed.
@@ -1264,7 +1262,7 @@ Section cut_elim.
   Local Fact cl_associative_m Γ Δ Θ : sg Γ ∘ (sg Δ ∘ sg Θ) ⊆ cl ((sg Γ ∘ sg Δ) ∘ sg Θ).
   Proof.
     intros _ [ _ _ D <- [ _ _ C <- <- H1 ] H2 ].
-    apply cl_equiv with ((Γ ⊛ₘ Δ) ⊛ₘ Θ); auto.
+    apply cl_bequiv with ((Γ ⊛ₘ Δ) ⊛ₘ Θ); auto.
     + red in H1, H2; eauto.
     + apply cl_increase.
       exists (Γ ⊛ₘ Δ) Θ; try red; auto.
@@ -1296,13 +1294,13 @@ Section cut_elim.
   Local Fact cl_neutral_2_a Γ : sg eₐ ⨣ sg Γ ⊆ cl (sg Γ).
   Proof.
     intros _ [ ? ? Δ <- <- H].
-    apply cl_equiv with Γ; eauto.
+    apply cl_bequiv with Γ; eauto.
   Qed.
   
   Local Fact cl_commute_a Γ Δ : sg Γ ⨣ sg Δ ⊆ cl (sg Δ ⨣ sg Γ).
   Proof.
     intros _ [ ? ? Θ <- <- H ].
-    apply cl_equiv with (Δ ⊛ₐ Γ); eauto.
+    apply cl_bequiv with (Δ ⊛ₐ Γ); eauto.
     apply cl_increase; eauto.
     exists Δ Γ; try red; auto.
   Qed.
@@ -1310,25 +1308,16 @@ Section cut_elim.
   Local Fact cl_associative_a Γ Δ Θ : sg Γ ⨣ (sg Δ ⨣ sg Θ) ⊆ cl ((sg Γ ⨣ sg Δ) ⨣ sg Θ).
   Proof.
     intros _ [ _ _ D <- [ _ _ C <- <- H1 ] H2 ].
-    apply cl_equiv with ((Γ ⊛ₐ Δ) ⊛ₐ Θ); auto.
+    apply cl_bequiv with ((Γ ⊛ₐ Δ) ⊛ₐ Θ); auto.
     + red in H1, H2; eauto.
     + apply cl_increase.
       exists (Γ ⊛ₐ Δ) Θ; try red; auto.
       exists Γ Δ; try red; auto.
   Qed.
 
-(*
-  Notation "x 'glb' y" := (x ∩ y) (at level 50, no associativity).
-  Notation "x 'lub' y" := (cl (x ∪ y)) (at level 50, no associativity).
-  
-  Abbreviation top := (λ _ : M, True).
-  Abbreviation bot := (cl (λ _, False)).
-  Abbreviation unit := (cl (sg eₘ)). 
-  *)
-  
   Local Fact cl_weak Γ : cl (sg eₐ) Γ.
   Proof. intros Σ A H; now apply LBI_weak, H. Qed.
-  
+
   Local Fact cl_cntr Γ : cl (sg Γ ⨣ sg Γ) Γ.
   Proof.
     intros Σ A H.
@@ -1336,56 +1325,101 @@ Section cut_elim.
     exists Γ Γ; try red; auto.
   Qed.
   
-  Let dwncl A Γ := Γ L⊦[BI_cut_free] A.
-  
+  Let dwncl A Γ := Γ L⊦[BI_cut_free] A.  
   Let sem_form :=  sem_form _ cl comp_m unit_m comp_a unit_a µ prop (fun x => dwncl (BI_form_var µ x)).
   Let sem_bunch := sem_bunch _ cl comp_m unit_m comp_a unit_a _ _ sem_form.
-  
-  Local Fact sem_form_Okada A : sem_form A ⟨A⟩ ∧ sem_form A ⊆ dwncl A.
+
+  Local Fact dwncl_closed A : cl (dwncl A) ⊆ dwncl A.
   Proof.
-    induction A as [ | [] | [] | [] | | ]; simpl; split; auto.
+    intros G H1.
+    apply (H1 (BI_ctx_hole _ _)); simpl; auto.
+  Qed.
+
+  Hint Resolve cl_idempotent cl_increase cl_monotone 
+              cl_neutral_1_a cl_neutral_1_m 
+              cl_neutral_2_a cl_neutral_2_m
+              cl_associative_a cl_associative_m
+              cl_commute_a cl_commute_m 
+              cl_stable_a_l cl_stable_m_l
+              cl_cntr cl_weak 
+              dwncl_closed : core.
+
+  Local Fact sem_form_is_closed A : cl (sem_form A) ⊆ sem_form A.
+  Proof. apply sem_form_closed; eauto. Qed.
+
+  Hint Resolve sem_form_is_closed : core.
+
+  Local Fact sem_bunch_is_closed Γ : cl (sem_bunch Γ) ⊆ sem_bunch Γ.
+  Proof. apply sem_bunch_closed; eauto. Qed.
+
+  Hint Resolve sem_bunch_is_closed : core.
+
+  Local Lemma sem_form_Okada A : sem_form A ⟨A⟩ ∧ sem_form A ⊆ dwncl A.
+  Proof.
+    induction A as [ 
+                   | [] Hµ 
+                   | [] Hµ A [IHA1 IHA2] B [IHB1 IHB2] 
+                   | [] Hµ A [IHA1 IHA2] B [IHB1 IHB2] 
+                   | Hµ 
+                   | Hµ A [IHA1 IHA2] B [IHB1 IHB2]  ]; simpl; split; auto.
     + apply LBI_axiom.
-    + intros Σ A H; rule LBI_unit_l at [].
-    + intros Γ HΓ; red.
-      apply (HΓ (BI_ctx_hole _ _)).
-      intros ? <-; simpl.
+    + intros ? ? ?; rule LBI_unit_l at [].
+    + apply cl_closed; eauto.
+      intros ? <-; red.
       apply LBI_unit_r.
-    + intros Σ A H; rule LBI_unit_l at [].
-    + intros Γ HΓ; red.
-      apply (HΓ (BI_ctx_hole _ _)).
-      intros ? <-; simpl.
+    + apply cl_closed; eauto.
+      intros ? <-; red.
       apply LBI_unit_r.
-    + intros Σ A H; rule LBI_conj_l at [].
-      apply H.
-      exists ⟨A1⟩ ⟨A2⟩.
-      * apply IHA1.
-      * apply IHA2.
-      * red; auto.
-    + intros Γ HΓ; red.
-      apply (HΓ (BI_ctx_hole _ _)).
-      intros _ [ ? ? ? ? ? E ]; simpl.
+    + intros Σ C HC; rule LBI_conj_l at [].
+      apply HC.
+      exists ⟨A⟩ ⟨B⟩; try red; auto.
+    + apply cl_closed; eauto.
+      intros _ [ G D K ? ? E ]; simpl.
       apply LBI_equiv with (1 := E).
       apply LBI_conj_r.
-      * now apply IHA1.
       * now apply IHA2.
-    + intros Σ A H; rule LBI_conj_l at [].
-      apply H.
-      exists ⟨A1⟩ ⟨A2⟩.
-      * apply IHA1.
-      * apply IHA2.
-      * red; auto.
-    + intros Γ HΓ; red.
-      apply (HΓ (BI_ctx_hole _ _)).
-      intros _ [ ? ? ? ? ? E ]; simpl.
+      * now apply IHB2.
+    + intros Σ C HC; rule LBI_conj_l at [].
+      apply HC.
+      exists ⟨A⟩ ⟨B⟩; try red; auto.
+    + apply cl_closed; eauto.
+      intros _ [ G D K ? ? E ]; simpl.
       apply LBI_equiv with (1 := E).
       apply LBI_conj_r.
-      * now apply IHA1.
       * now apply IHA2.
-    + intros Γ [? G1 G2 <- H1 H2]; red in H2.
-      apply IHA1 in H1.
-  Admitted.
-  
-  Local Fact sem_bunch_Okada Γ : sem_bunch Γ Γ.
+      * now apply IHB2.
+    + apply magicwand_monotone with (A' := dwncl A) (B := cl (sg ⟨B⟩)); auto.
+      * apply cl_closed; eauto; intros ? <-; auto.
+      * intros Γ [? G D <- HG HD]; red in HG, HD.
+        apply cl_bequiv with (1 := HD),
+              cl_bequiv with (1 := BI_bequiv_comm _ _ _).
+        intros ? ? ?; apply LBI_impl_l; auto.
+    + eapply inc1_trans.
+      1:{ apply magicwand_monotone with (A := sg ⟨A⟩) (B' := dwncl B); auto.
+          intros ? <-; auto. }
+      intros G HG; red in HG |- *.
+      apply LBI_impl_r, HG.
+      exists G ⟨A⟩; try red; auto.
+    + apply magicwand_monotone with (A' := dwncl A) (B := cl (sg ⟨B⟩)); auto.
+      * apply cl_closed; eauto; intros ? <-; auto.
+      * intros Γ [? G D <- HG HD]; red in HG, HD.
+        apply cl_bequiv with (1 := HD),
+              cl_bequiv with (1 := BI_bequiv_comm _ _ _).
+        intros ? ? ?; apply LBI_impl_l; auto.
+    + eapply inc1_trans.
+      1:{ apply magicwand_monotone with (A := sg ⟨A⟩) (B' := dwncl B); auto.
+          intros ? <-; auto. }
+      intros G HG; red in HG |- *.
+      apply LBI_impl_r, HG.
+      exists G ⟨A⟩; try red; auto.
+    + intros ? ? ?; apply LBI_bot_l.
+    + apply cl_closed; now eauto.
+    + intros Σ C HC; apply LBI_disj_l; apply HC; tauto.
+    + apply cl_closed; eauto.
+      intros ? []; [ apply LBI_disj_r1, IHA2 | apply LBI_disj_r2, IHB2 ]; auto.
+  Qed.
+
+  Local Corollary sem_bunch_Okada Γ : sem_bunch Γ Γ.
   Proof.
     induction Γ as [ | [] | [] ]; simpl.
     + apply sem_form_Okada.
@@ -1394,25 +1428,13 @@ Section cut_elim.
     + apply cl_increase; exists Γ1 Γ2; red; auto.
     + apply cl_increase; exists Γ1 Γ2; red; auto.
   Qed.
-  
-  Hint Resolve cl_idempotent cl_increase cl_monotone 
-              cl_neutral_1_a cl_neutral_1_m 
-              cl_neutral_2_a cl_neutral_2_m
-              cl_associative_a cl_associative_m
-              cl_commute_a cl_commute_m 
-              cl_stable_a_l cl_stable_m_l
-              cl_cntr cl_weak : core.
-  
+
   Theorem LBI_cut_elim cut Γ A : Γ L⊦[cut] A → Γ L⊦[BI_cut_free] A.
   Proof.
     intros H.
     cut (sem_bunch Γ ⊆ sem_form A).
     + intros H1; apply sem_form_Okada, H1, sem_bunch_Okada.
-    + revert H.
-      apply LBI_soundness; eauto.
-      clear Γ A.
-      intros v Γ HΓ; red.
-      apply (HΓ (BI_ctx_hole _ _)); simpl; auto.
+    + revert H; apply LBI_soundness; eauto.
   Qed.
 
 End cut_elim.
