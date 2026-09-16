@@ -238,7 +238,8 @@ Section LBI_map_conservative.
   Let bmap := @BI_bunch_map µ µ' Hµ prop _ (λ x, x).
 
   (** if Γ ⊦ A is cut-free provable in the larger fragment, it is also
-      provable in the smaller fragment *)
+      provable in the smaller fragment. The converse is much simpler
+      to establish *)
 
   Hint Constructors BI_form_iso BI_bunch_iso : core.
 
