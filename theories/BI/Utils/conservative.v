@@ -66,14 +66,13 @@ Section convervative_wo_cut.
     (* Which gives us a functional relation *)
     Fact BI_fi_inj { A B B' } : A ≡ᶠ B → A ≡ᶠ B' → B = B'.
     Proof.
-      intros E; revert E B'.
-      induction 1.
-      + now intros ? ->%BI_fi_inv.
-      + intros ? (? & ->)%BI_fi_inv; f_equal; auto.
-      + intros ? (? & ? & ? & -> & ? & ?)%BI_fi_inv; f_equal; auto.
-      + intros ? (? & ? & ? & -> & ? & ?)%BI_fi_inv; f_equal; auto.
-      + intros ? (? & ->)%BI_fi_inv; f_equal; auto.
-      + intros ? (? & ? & ? & -> & ? & ?)%BI_fi_inv; f_equal; auto.
+      induction 1 in B' |- *.
+      + now intros ->%BI_fi_inv.
+      + intros (? & ->)%BI_fi_inv; f_equal; auto.
+      + intros (? & ? & ? & -> & ? & ?)%BI_fi_inv; f_equal; auto.
+      + intros (? & ? & ? & -> & ? & ?)%BI_fi_inv; f_equal; auto.
+      + intros (? & ->)%BI_fi_inv; f_equal; auto.
+      + intros (? & ? & ? & -> & ? & ?)%BI_fi_inv; f_equal; auto.
     Qed.
 
     (** Now structural id. for bunches *)
@@ -107,9 +106,8 @@ Section convervative_wo_cut.
 
     Lemma BI_ctx_fill_inv Σ Γ Δ : Σ[Γ] ≡ᵇ Δ → ∃ Σ' Γ', Δ = Σ'[Γ'] ∧ Γ ≡ᵇ Γ' ∧ Σ ≡ᶜ Σ'.
     Proof.
-      revert Δ.
-      induction Σ as [ | [] k G Σ IH ]; intros D; simpl.
-      + exists BI_ctx_hole, D; auto.
+      induction Σ as [ | [] k G Σ IH ] in Δ |- *; simpl.
+      + exists BI_ctx_hole, Δ; auto.
       + intros (G' & D' & -> & ? & (S' & G'' & -> & [])%IH)%BI_bi_inv.
         exists (BI_ctx_comp BI_left k G' S'), G''; simpl; auto.
       + intros (G' & D' & -> & (S' & G'' & -> & [])%IH & ?)%BI_bi_inv.
@@ -164,13 +162,13 @@ Section convervative_wo_cut.
 
   Hint Constructors BI_bunch_equiv : core.
 
-  (* Mutual induction needed because of the symmetry of the relation 
+  (* Mutual induction needed because of the symmetry of the relation
 
      Remember than _ ≡ _ is bunch equivalence, not structural identity
      and it satisfies the comm. monoidal laws. *)
-  Local Lemma BI_bi_bequiv_rec µ µ' (Γ Γ' : BI_bunch µ prop) :
+  Local Lemma BI_bi_bequiv_mutual µ µ' (Γ Γ' : BI_bunch µ prop) :
       Γ ≡ Γ'
-    → (∀Δ : BI_bunch µ' prop, Γ ≡ᵇ Δ   → ∃Δ', Δ ≡ Δ' ∧ Γ' ≡ᵇ Δ')
+    → (∀Δ : BI_bunch µ' prop, Γ ≡ᵇ Δ → ∃Δ', Δ ≡ Δ' ∧ Γ' ≡ᵇ Δ')
     ∧ (∀Δ': BI_bunch µ' prop, Γ' ≡ᵇ Δ' → ∃Δ, Δ ≡ Δ' ∧ Γ ≡ᵇ Δ).
   Proof.
     induction 1 as [ G | G G' E IH | G G' G'' E1 IH1 E2 IH2 | | | k Γ Δ Θ | k Γ Δ Θ H IH ].
@@ -192,35 +190,21 @@ Section convervative_wo_cut.
 
   Corollary BI_bi_bequiv {µ µ'} {Γ Γ' : BI_bunch µ prop} {Δ : BI_bunch µ' prop} :
       Γ ≡ Γ' → Γ ≡ᵇ Δ → ∃Δ', Δ ≡ Δ' ∧ Γ' ≡ᵇ Δ'.
-  Proof. intros H; apply BI_bi_bequiv_rec with (1 := H). Qed.
+  Proof. intros H; apply BI_bi_bequiv_mutual with (1 := H). Qed.
 
   Hint Resolve BI_ci_bi_subst : core.
-  
+
   Hint Constructors LBI_provable : core.
 
   Local Lemma LBI_cut_free_iso_conservative µ µ' (Γ : BI_bunch µ prop) A (Δ : BI_bunch µ' prop) B :
     Γ ≡ᵇ Δ → A ≡ᶠ B → Γ L⊦[BI_cut_free] A → Δ L⊦[BI_cut_free] B.
   Proof.
     intros H1 H2 H3; revert H3 Δ B H1 H2.
-    induction 1 as   [ 
-                     | ? Γ Δ A B _ IH1 _ IH2 
-                     | Γ Δ A H _ IH
-                     | Γ Δ A _ IH
-                     | Γ Δ A _ IH
-                     | [] hk Γ A _ IH
-                     | [] hk
-                     | [] hk Γ A B C _ IH
-                     | [] hk Γ Δ A B _ IH1 _ IH2
-                     | [] hk Γ Δ A B C _ IH1 _ IH2
-                     | [] hk Γ A B _ IH
-                     |
-                     | Γ Δ A B C _ IH1 _ IH2
-                     | ? Γ A B _ IH
-                     | ? Γ A B _ IH
-                     ].
-    1: intros ? ? (? & -> & E)%BI_bi_inv <-%(BI_fi_inj E); auto.
+    induction 1; 
+      try match goal with k : BI_kind |- _ => destruct k end.
+    1: intros ? ? (? & -> & H)%BI_bi_inv <-%(BI_fi_inj H); auto.
     1: easy. (* cut is forbidden and THIS IS WHY THE PROOF WORKS !! *)
-    1: intros ? ? (? & [])%(BI_bi_bequiv (BI_bequiv_sym H)) ?; eauto.
+    1: match goal with H: _ ≡ _ |- _ => intros ? ? (? & [])%(BI_bi_bequiv (BI_bequiv_sym H)) ?; eauto end.
     1,2: intros ? ? (? & ? & -> & [])%BI_ctx_fill_inv ?; eauto.
     1,2: intros ? ? (? & ? & -> & (? & -> & (? & ->)%BI_fi_inv)%BI_bi_inv & ?)%BI_ctx_fill_inv ?; auto.
     1,2: intros ? ? ->%BI_bi_inv (h' & ->)%BI_fi_inv; auto.
@@ -228,13 +212,17 @@ Section convervative_wo_cut.
     1,2: intros ? ? (? & ? & -> & [])%BI_bi_inv (? & ? & ? & -> & [])%BI_fi_inv; auto.
     1,2: intros ? ? (? & ? & -> & (? & ? & -> & ? & (? & -> & (? & ? & ? & -> & [])%BI_fi_inv)%BI_bi_inv)%BI_bi_inv & ?)%BI_ctx_fill_inv ?; apply LBI_impl_l; auto.
     1,2: intros ? ? ? (? & ? & ? & -> & [])%BI_fi_inv; auto.
-    1: intros ? ? (Γ' & ? & -> & (? & -> & (? & ->)%BI_fi_inv)%BI_bi_inv & ?)%BI_ctx_fill_inv ?; auto.
-    1: intros ? ? (Δ' & ? & -> & (? & -> & (A' & B' & ? & -> & [])%BI_fi_inv)%BI_bi_inv & ?)%BI_ctx_fill_inv ?; apply LBI_disj_l; auto.
+    1: intros ? ? (? & ? & -> & (? & -> & (? & ->)%BI_fi_inv)%BI_bi_inv & ?)%BI_ctx_fill_inv ?; auto.
+    1: intros ? ? (? & ? & -> & (? & -> & (? & ? & ? & -> & [])%BI_fi_inv)%BI_bi_inv & ?)%BI_ctx_fill_inv ?; apply LBI_disj_l; auto.
     1,2: intros ? ? ? (? & ? & ? & -> & [])%BI_fi_inv; auto.
   Qed.
 
+  (** If Γ and Δ (resp. A and B) are structurally iso then
+      Γ ⊦ A and Δ ⊦ B are equi-provable in the cut-free
+      LBI calculus *)
+
   Corollary LBI_cut_free_conservative µ µ' (Γ : BI_bunch µ prop) A (Δ : BI_bunch µ' prop) B :
-    Γ ≡ᵇ Δ → A ≡ᶠ B → Γ L⊦[BI_cut_free] A <-> Δ L⊦[BI_cut_free] B.
+    Γ ≡ᵇ Δ → A ≡ᶠ B → Γ L⊦[BI_cut_free] A ↔ Δ L⊦[BI_cut_free] B.
   Proof. split; apply LBI_cut_free_iso_conservative; auto. Qed.
 
 End convervative_wo_cut.
@@ -247,6 +235,9 @@ Arguments BI_bunch_iso {_ _ _}.
 
 Check LBI_cut_free_conservative.
 
+#[local] Arguments BI_form_map {_ _} _ {_ _}.
+#[local] Arguments BI_bunch_map {_ _} _ {_ _}.
+
 Section LBI_map_conservative.
 
   (** We derive conservativity results for the map functions 
@@ -255,11 +246,10 @@ Section LBI_map_conservative.
 
   Variables (µ µ' : BI_conn → bool) (Hµ : ∀c, µ c = true → µ' c = true) (prop : Set).
 
-  Arguments BI_form_map {_ _} _ {_ _}.
-  Arguments BI_bunch_map {_ _} _ {_ _}.
+  (* Propositional variables are left unmodified, as requested by the definition of BI_form_iso *)
 
-  Let fmap := @BI_form_map µ µ' Hµ prop _ (λ x, x).
-  Let bmap := @BI_bunch_map µ µ' Hµ prop _ (λ x, x).
+  Let fmap := BI_form_map Hµ (λ x : prop, x).
+  Let bmap := BI_bunch_map Hµ (λ x : prop, x).
 
   Hint Constructors BI_form_iso BI_bunch_iso : core.
 
