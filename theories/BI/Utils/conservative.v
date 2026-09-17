@@ -248,8 +248,8 @@ Section LBI_map_conservative.
 
   (* Propositional variables are left unmodified, as requested by the definition of BI_form_iso *)
 
-  Let fmap := BI_form_map Hµ (λ x : prop, x).
-  Let bmap := BI_bunch_map Hµ (λ x : prop, x).
+  Let fmap := BI_form_map Hµ (λ v : prop, v).
+  Let bmap := BI_bunch_map Hµ (λ v : prop, v).
 
   Hint Constructors BI_form_iso BI_bunch_iso : core.
 
@@ -279,3 +279,59 @@ Section LBI_map_conservative.
 End LBI_map_conservative.
 
 Check LBI_cut_free_map_conservative.
+
+Require Import Arith Lia.
+
+Section weight.
+
+  Variables (µ : BI_conn → bool) (prop : Set).
+  
+  Implicit Types (Γ : BI_bunch µ prop) (Σ : BI_ctx µ prop).
+
+  Fixpoint BI_bunch_weight Γ :=
+    match Γ with
+    | ⟨_⟩ => 1
+    | ø[_] => 0
+    | Γ ⊛[_] Δ => BI_bunch_weight Γ + BI_bunch_weight Δ
+    end.
+  
+  Fact BI_bequiv_weight Γ Δ : Γ ≡ Δ → BI_bunch_weight Γ = BI_bunch_weight Δ.
+  Proof. induction 1; simpl; lia. Qed.
+  
+  Fixpoint BI_ctx_weight Σ :=
+    match Σ with
+    | BI_ctx_hole => 0
+    | BI_ctx_comp _ _ Γ Σ => BI_bunch_weight Γ + BI_ctx_weight Σ
+    end.
+
+  Fact BI_ctx_fill_weight Σ Γ : BI_bunch_weight Σ[Γ] = BI_ctx_weight Σ + BI_bunch_weight Γ.
+  Proof. induction Σ as [ | [] ]; simpl; lia. Qed.
+
+End weight.
+
+#[local] Arguments BI_bunch_weight {_ _}.
+
+Section Consistency.
+
+  Variables (prop : Set).
+
+  Lemma LBI_cut_free_consistent_weight Γ (A : BI_form (λ _, false) prop) : 
+    Γ L⊦[BI_cut_free] A → BI_bunch_weight Γ ≠ 0.
+  Proof.
+    induction 1; try easy; eauto.
+    1: match goal with H: _ ≡ _ |- _ => apply BI_bequiv_weight in H end; lia.
+    1,2: match goal with H: _ ≠ 0 |- _ => rewrite BI_ctx_fill_weight in H |- * end; simpl in *; lia.
+  Qed.
+  
+  Hint Constructors BI_form_iso BI_bunch_iso : core.
+
+  Theorem LBI_cut_free_consistent µ k v : ~ ø[k] L⊦[BI_cut_free] @BI_form_var µ prop v.
+  Proof.
+    intros H.
+    apply (LBI_cut_free_consistent_weight ø[k] (BI_form_var v)); auto.
+    revert H; apply LBI_cut_free_conservative; auto.
+  Qed.
+
+End Consistency.
+
+Check LBI_cut_free_consistent.
