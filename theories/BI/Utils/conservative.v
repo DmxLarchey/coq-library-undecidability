@@ -8,108 +8,111 @@
 (**************************************************************)
 
 From Stdlib Require Import Utf8.
-
-From Undecidability.BI
-  Require Import BI utils lbi cutelim.
-
+From Undecidability.BI Require Import BI utils lbi cutelim.
 Import BI_notations LBI_tactics.
+
+#[local] Arguments BI_form_var {_ _}.
+#[local] Arguments BI_form_unit {_ _}.
+#[local] Arguments BI_form_bot {_ _}.
+
+#[local] Arguments BI_ctx_hole {_ _}.
+
+#[local] Reserved Notation "x '≡ᶠ' y" (at level 70, no associativity, format "x  ≡ᶠ  y").
+#[local] Reserved Notation "x '≡ᵇ' y" (at level 70, no associativity, format "x  ≡ᵇ  y").
+#[local] Reserved Notation "x '≡ᶜ' y" (at level 70, no associativity, format "x  ≡ᶜ  y").
 
 Section convervative_wo_cut.
 
   Variable (prop : Set).
 
+  Hint Resolve eq_bool_pirr : core.
+
   Section iso.
 
     Variables (µ µ' : BI_conn → bool).
+    
+    (** Structural identity for two BI formulas over different fragments as an inductive relation
+        Notice that this relation is a partial bijection so working with Rocq functions instead
+        of relations is going to generate lots of troubles related to dependent types and
+        transport that are completely avoided when using a depoendent relation instead.
+        
+        This relation is a (dependent) equivalent relation, see below for refl, sym and trans *)
 
     Inductive BI_form_iso : BI_form µ prop → BI_form µ' prop → Prop :=
-      | BI_fi_var v :                 BI_form_iso (BI_form_var _ v) (BI_form_var _ v)
-      | BI_fi_unit k h h' :           BI_form_iso (BI_form_unit _ _ k h) (BI_form_unit _ _ k h')
-      | BI_fi_conj k h h' A B A' B' : BI_form_iso A A'
-                                    → BI_form_iso B B'
-                                    → BI_form_iso (BI_form_conj k h A B) (BI_form_conj k h' A' B')
-      | BI_fi_impl k h h' A B A' B' : BI_form_iso A A'
-                                    → BI_form_iso B B'
-                                    → BI_form_iso (BI_form_impl k h A B) (BI_form_impl k h' A' B')
-      | BI_fi_bot h h'              : BI_form_iso (BI_form_bot _ _ h) (BI_form_bot _ _ h')
-      | BI_fi_disj h h' A B A' B'   : BI_form_iso A A'
-                                    → BI_form_iso B B'
-                                    → BI_form_iso (BI_form_disj h A B) (BI_form_disj h' A' B') 
-      .
+      | BI_fi_var v :                 BI_form_var v ≡ᶠ BI_form_var v
+      | BI_fi_unit k h h' :           BI_form_unit k h  ≡ᶠ BI_form_unit k h'
+      | BI_fi_conj k h h' A B A' B' : A ≡ᶠ A' → B ≡ᶠ B' → BI_form_conj k h A B ≡ᶠ BI_form_conj k h' A' B'
+      | BI_fi_impl k h h' A B A' B' : A ≡ᶠ A' → B ≡ᶠ B' → BI_form_impl k h A B ≡ᶠ BI_form_impl k h' A' B'
+      | BI_fi_bot h h'              : BI_form_bot h ≡ᶠ BI_form_bot h'
+      | BI_fi_disj h h' A B A' B'   : A ≡ᶠ A' → B ≡ᶠ B' → BI_form_disj h A B ≡ᶠ BI_form_disj h' A' B' 
+    where "A ≡ᶠ B" := (BI_form_iso A B).
 
-    Fact BI_fi_invert C D :
-        BI_form_iso C D 
+    (* The critical tool is inversion lemma as usual *)
+    Fact BI_fi_inv C D :
+        C ≡ᶠ D  
       → match C with
-        | BI_form_var _ v      => D = BI_form_var _ v
-        | BI_form_unit _ _ k h => ∃h', D = BI_form_unit _ _ k h'
-        | BI_form_conj k h A B => ∃ A' B' h', D = BI_form_conj k h' A' B' ∧ BI_form_iso A A' ∧ BI_form_iso B B'
-        | BI_form_impl k h A B => ∃ A' B' h', D = BI_form_impl k h' A' B' ∧ BI_form_iso A A' ∧ BI_form_iso B B'
-        | BI_form_bot _ _ h    => ∃h', D = BI_form_bot _ _ h'
-        | BI_form_disj h A B   => ∃ A' B' h', D = BI_form_disj h' A' B' ∧ BI_form_iso A A' ∧ BI_form_iso B B'
+        | BI_form_var v        => D = BI_form_var v
+        | BI_form_unit k h     => ∃h', D = BI_form_unit k h'
+        | BI_form_conj k h A B => ∃ A' B' h', D = BI_form_conj k h' A' B' ∧ A ≡ᶠ A' ∧ B ≡ᶠ B'
+        | BI_form_impl k h A B => ∃ A' B' h', D = BI_form_impl k h' A' B' ∧ A ≡ᶠ A' ∧ B ≡ᶠ B'
+        | BI_form_bot _h       => ∃h', D = BI_form_bot  h'
+        | BI_form_disj h A B   => ∃ A' B' h', D = BI_form_disj h' A' B' ∧ A ≡ᶠ A' ∧ B ≡ᶠ B'
         end.
     Proof.
       intros [ | | k h h' A B A' B' | k h h' A B A' B' | h h' | h h' A B A' B' ]; eauto.
       all: exists A', B', h'; auto.
     Qed.
 
-    Hint Resolve eq_bool_pirr : core.
-
-    Fact BI_fi_inj { A B B' } : BI_form_iso A B → BI_form_iso A B' → B = B'.
+    (* Which gives us a functional relation *)
+    Fact BI_fi_inj { A B B' } : A ≡ᶠ B → A ≡ᶠ B' → B = B'.
     Proof.
       intros E; revert E B'.
       induction 1.
-      + now intros ? ->%BI_fi_invert.
-      + intros ? (? & ->)%BI_fi_invert; f_equal; auto.
-      + intros ? (? & ? & ? & -> & ? & ?)%BI_fi_invert; f_equal; auto.
-      + intros ? (? & ? & ? & -> & ? & ?)%BI_fi_invert; f_equal; auto.
-      + intros ? (? & ->)%BI_fi_invert; f_equal; auto.
-      + intros ? (? & ? & ? & -> & ? & ?)%BI_fi_invert; f_equal; auto.
+      + now intros ? ->%BI_fi_inv.
+      + intros ? (? & ->)%BI_fi_inv; f_equal; auto.
+      + intros ? (? & ? & ? & -> & ? & ?)%BI_fi_inv; f_equal; auto.
+      + intros ? (? & ? & ? & -> & ? & ?)%BI_fi_inv; f_equal; auto.
+      + intros ? (? & ->)%BI_fi_inv; f_equal; auto.
+      + intros ? (? & ? & ? & -> & ? & ?)%BI_fi_inv; f_equal; auto.
     Qed.
 
-    Inductive BI_bunch_iso : BI_bunch µ prop → BI_bunch µ' prop → Prop :=
-      | BI_bi_atom A B         : BI_form_iso A B
-                               → BI_bunch_iso ⟨A⟩ ⟨B⟩
-      | BI_bi_unit k           : BI_bunch_iso (BI_bunch_unit _ _ k) (BI_bunch_unit _ _ k)
-      | BI_bi_comp k Γ Δ Γ' Δ' : BI_bunch_iso Γ Γ'
-                               → BI_bunch_iso Δ Δ'
-                               → BI_bunch_iso (Γ ⊛[k] Δ) (Γ' ⊛[k] Δ')
-      .
+    (** Now structural id. for bunches *)
 
-    Fact BI_bi_invert Γ Δ :
-        BI_bunch_iso Γ Δ
+    Inductive BI_bunch_iso : BI_bunch µ prop → BI_bunch µ' prop → Prop :=
+      | BI_bi_atom A B         : A ≡ᶠ B → ⟨A⟩ ≡ᵇ ⟨B⟩
+      | BI_bi_unit k           : ø[k] ≡ᵇ ø[k]
+      | BI_bi_comp k Γ Δ Γ' Δ' : Γ ≡ᵇ Γ'→ Δ ≡ᵇ Δ' → Γ ⊛[k] Δ ≡ᵇ Γ' ⊛[k] Δ'
+    where "Γ ≡ᵇ Δ" := (BI_bunch_iso Γ Δ).
+
+    Fact BI_bi_inv Γ Δ :
+        Γ ≡ᵇ Δ
       → match Γ with
-        | ⟨A⟩                 => ∃B, Δ = ⟨B⟩ ∧ BI_form_iso A B
-        | BI_bunch_unit _ _ k => Δ = BI_bunch_unit _ _ k
-        | Γ' ⊛[k] Γ''         => ∃ Δ' Δ'', Δ = Δ' ⊛[k] Δ'' ∧ BI_bunch_iso Γ' Δ' ∧ BI_bunch_iso Γ'' Δ''
+        | ⟨A⟩          => ∃B, Δ = ⟨B⟩ ∧ A ≡ᶠ B
+        | ø[k]         => Δ = ø[k]
+        | Γ₁ ⊛[k] Γ₂  => ∃ Δ₁ Δ₂, Δ = Δ₁ ⊛[k] Δ₂ ∧ Γ₁ ≡ᵇ Δ₁ ∧ Γ₂ ≡ᵇ Δ₂
         end.
     Proof. intros []; eauto. Qed.
 
-    Hint Constructors BI_bunch_equiv : core.
+    (** Now structural id. for contexts, ie bunches with a single hole *)
 
     Inductive BI_ctx_iso : BI_ctx µ prop → BI_ctx µ' prop → Prop :=
-      | BI_ci_hole               : BI_ctx_iso (BI_ctx_hole _ _) (BI_ctx_hole _ _)
-      | BI_ci_comp s k Γ Γ' Σ Σ' : BI_bunch_iso Γ Γ'
-                                 → BI_ctx_iso Σ Σ'
-                                 → BI_ctx_iso (BI_ctx_comp s k Γ Σ) (BI_ctx_comp s k Γ' Σ') 
-      .
+      | BI_ci_hole               : BI_ctx_hole ≡ᶜ BI_ctx_hole
+      | BI_ci_comp s k Γ Γ' Σ Σ' : Γ ≡ᵇ Γ' → Σ ≡ᶜ Σ' → BI_ctx_comp s k Γ Σ ≡ᶜ BI_ctx_comp s k Γ' Σ' 
+    where "Σ ≡ᶜ Σ'" := (BI_ctx_iso Σ Σ').
+
+    Fact BI_ci_bi_subst Σ Σ' Γ Γ' : Γ ≡ᵇ Γ' → Σ ≡ᶜ Σ' → Σ[Γ] ≡ᵇ Σ'[Γ'].
+    Proof. induction 2 as [ | [] ]; simpl; eauto; constructor; auto. Qed.
 
     Hint Constructors BI_ctx_iso : core.
 
-    Fact BI_ci_bi_subst Σ Σ' Γ Γ' : BI_ctx_iso Σ Σ' → BI_bunch_iso Γ Γ' → BI_bunch_iso Σ[Γ] Σ'[Γ'].
-    Proof.
-      intros H1 H2; revert H1; induction 1 as [ | [] ]; simpl; eauto; constructor; auto.
-    Qed.
-
-    Fact BI_subst_invert Σ Γ Δ : 
-        BI_bunch_iso Σ[Γ] Δ
-      → ∃ Σ' Γ', Δ = Σ'[Γ'] ∧ BI_bunch_iso Γ Γ' ∧ BI_ctx_iso Σ Σ'.
+    Lemma BI_ctx_fill_inv Σ Γ Δ : Σ[Γ] ≡ᵇ Δ → ∃ Σ' Γ', Δ = Σ'[Γ'] ∧ Γ ≡ᵇ Γ' ∧ Σ ≡ᶜ Σ'.
     Proof.
       revert Δ.
       induction Σ as [ | [] k G Σ IH ]; intros D; simpl.
-      + exists (BI_ctx_hole _ _), D; auto.
-      + intros (G' & D' & -> & ? & (S' & G'' & -> & [])%IH)%BI_bi_invert.
+      + exists BI_ctx_hole, D; auto.
+      + intros (G' & D' & -> & ? & (S' & G'' & -> & [])%IH)%BI_bi_inv.
         exists (BI_ctx_comp BI_left k G' S'), G''; simpl; auto.
-      + intros (G' & D' & -> & (S' & G'' & -> & [])%IH & ?)%BI_bi_invert.
+      + intros (G' & D' & -> & (S' & G'' & -> & [])%IH & ?)%BI_bi_inv.
         exists (BI_ctx_comp BI_right k D' S'), G''; simpl; auto.
     Qed.
 
@@ -119,22 +122,56 @@ Section convervative_wo_cut.
   Arguments BI_form_iso {_ _}.
   Arguments BI_bunch_iso {_ _}.
 
+  Infix "≡ᶠ" := BI_form_iso.
+  Infix "≡ᵇ" := BI_bunch_iso.
+
   Hint Constructors BI_form_iso BI_bunch_iso : core.
 
-  Fact BI_fi_sym µ µ' A B : @BI_form_iso µ µ' A B → BI_form_iso B A.
+  Local Remark BI_fi_refl µ (A : BI_form µ prop) : A ≡ᶠ A.
+  Proof. induction A; eauto. Qed.
+
+  Fact BI_fi_sym µ µ' (A : BI_form µ prop) (B : BI_form µ' _) : A ≡ᶠ B → B ≡ᶠ A.
   Proof. induction 1; eauto. Qed.
 
-  Hint Resolve BI_fi_sym : core.
+  Local Remark BI_fi_trans µ µ' µ'' (A : BI_form µ prop) (B : BI_form µ' _) (C : BI_form µ'' _) : A ≡ᶠ B → B ≡ᶠ C → A ≡ᶠ C.
+  Proof.
+    induction 1 in C |- *.
+    + intros ->%BI_fi_inv; auto.
+    + intros (? & ->)%BI_fi_inv; f_equal; auto.
+    + intros (? & ? & ? & -> & [])%BI_fi_inv; eauto.
+    + intros (? & ? & ? & -> & [])%BI_fi_inv; eauto.
+    + intros (? & ->)%BI_fi_inv; auto.
+    + intros (? & ? & ? & -> & [])%BI_fi_inv; eauto.
+  Qed.
 
-  Fact BI_bi_sym µ µ' Γ Δ : @BI_bunch_iso µ µ' Γ Δ → BI_bunch_iso Δ Γ.
+  Hint Resolve BI_fi_refl BI_fi_sym BI_fi_trans : core.
+
+  Local Remark BI_bi_refl µ (Γ : BI_bunch µ prop) : Γ ≡ᵇ Γ.
+  Proof. induction Γ; eauto. Qed.
+
+  Fact BI_bi_sym µ µ' (Γ : BI_bunch µ prop) (Δ : BI_bunch µ' _) : Γ ≡ᵇ Δ → Δ ≡ᵇ Γ.
   Proof. induction 1; eauto. Qed.
 
-  Hint Constructors BI_bunch_equiv BI_bunch_iso : core.
+  Local Remark BI_bi_trans µ µ' µ'' (Γ : BI_bunch µ prop) (Δ : BI_bunch µ' _) (Θ : BI_bunch µ'' _) : Γ ≡ᵇ Δ → Δ ≡ᵇ Θ → Γ ≡ᵇ Θ.
+  Proof.
+    induction 1 in Θ |- *.
+    + intros (? & -> & ?)%BI_bi_inv; eauto.
+    + intros ->%BI_bi_inv; auto.
+    + intros (? & ? & -> & [])%BI_bi_inv; auto.
+  Qed.
+  
+  Hint Resolve BI_bi_sym : core.
 
-  Lemma BI_bi_bequiv_rec µ µ' Γ Γ' :
+  Hint Constructors BI_bunch_equiv : core.
+
+  (* Mutual induction needed because of the symmetry of the relation 
+
+     Remember than _ ≡ _ is bunch equivalence, not structural identity
+     and it satisfies the comm. monoidal laws. *)
+  Local Lemma BI_bi_bequiv_rec µ µ' (Γ Γ' : BI_bunch µ prop) :
       Γ ≡ Γ'
-    → (∀Δ, @BI_bunch_iso µ µ' Γ Δ → ∃Δ', Δ ≡ Δ' ∧ BI_bunch_iso Γ' Δ')
-    ∧ (∀Δ', @BI_bunch_iso µ µ' Γ' Δ' → ∃Δ, Δ ≡ Δ' ∧ BI_bunch_iso Γ Δ).
+    → (∀Δ : BI_bunch µ' prop, Γ ≡ᵇ Δ   → ∃Δ', Δ ≡ Δ' ∧ Γ' ≡ᵇ Δ')
+    ∧ (∀Δ': BI_bunch µ' prop, Γ' ≡ᵇ Δ' → ∃Δ, Δ ≡ Δ' ∧ Γ ≡ᵇ Δ).
   Proof.
     induction 1 as [ G | G G' E IH | G G' G'' E1 IH1 E2 IH2 | | | k Γ Δ Θ | k Γ Δ Θ H IH ].
     + split; eauto.
@@ -143,27 +180,28 @@ Section convervative_wo_cut.
       * intros ? (D' & ? & (D'' & ? & ?)%IH2)%IH1; exists D''; eauto.
       * intros ? (D' & ? & (D'' & ? & ?)%IH1)%IH2; exists D''; eauto.
     + split.
-      * intros ? (? & D & -> & ->%BI_bi_invert & ?)%BI_bi_invert; eauto.
+      * intros ? (? & D & -> & ->%BI_bi_inv & ?)%BI_bi_inv; eauto.
       * intros D ?.
         exists (ø[k] ⊛[k] D); eauto.
-    + split; intros ? (G & D & -> & ? & ?)%BI_bi_invert; exists (D ⊛[k] G); eauto.
+    + split; intros ? (G & D & -> & ? & ?)%BI_bi_inv; exists (D ⊛[k] G); eauto.
     + split.
-      * intros ? (? & T & -> & (G & D & -> & [])%BI_bi_invert & ?)%BI_bi_invert; eauto.
-      * intros ? (G & ? & -> & ? & (D & T & -> & [])%BI_bi_invert)%BI_bi_invert; eauto.
-    + split; intros ? (G & D & -> & ? & (T & [])%IH)%BI_bi_invert; exists (G ⊛[k] T); eauto.
+      * intros ? (? & T & -> & (G & D & -> & [])%BI_bi_inv & ?)%BI_bi_inv; eauto.
+      * intros ? (G & ? & -> & ? & (D & T & -> & [])%BI_bi_inv)%BI_bi_inv; eauto.
+    + split; intros ? (G & D & -> & ? & (T & [])%IH)%BI_bi_inv; exists (G ⊛[k] T); eauto.
   Qed.
 
   Corollary BI_bi_bequiv {µ µ'} {Γ Γ' : BI_bunch µ prop} {Δ : BI_bunch µ' prop} :
-      Γ ≡ Γ'
-    → BI_bunch_iso Γ Δ 
-    → ∃Δ', Δ ≡ Δ' ∧ BI_bunch_iso Γ' Δ'.
+      Γ ≡ Γ' → Γ ≡ᵇ Δ → ∃Δ', Δ ≡ Δ' ∧ Γ' ≡ᵇ Δ'.
   Proof. intros H; apply BI_bi_bequiv_rec with (1 := H). Qed.
 
   Hint Resolve BI_ci_bi_subst : core.
+  
+  Hint Constructors LBI_provable : core.
 
-  Lemma LBI_cut_free_conservative µ µ' Γ A :
-    Γ L⊦[BI_cut_free] A → ∀ Δ B, @BI_bunch_iso µ µ' Γ Δ → BI_form_iso A B → Δ L⊦[BI_cut_free] B.
+  Local Lemma LBI_cut_free_iso_conservative µ µ' (Γ : BI_bunch µ prop) A (Δ : BI_bunch µ' prop) B :
+    Γ ≡ᵇ Δ → A ≡ᶠ B → Γ L⊦[BI_cut_free] A → Δ L⊦[BI_cut_free] B.
   Proof.
+    intros H1 H2 H3; revert H3 Δ B H1 H2.
     induction 1 as   [ 
                      | ? Γ Δ A B _ IH1 _ IH2 
                      | Γ Δ A H _ IH
@@ -180,54 +218,40 @@ Section convervative_wo_cut.
                      | ? Γ A B _ IH
                      | ? Γ A B _ IH
                      ].
-    + intros ? ? (B & -> & E)%BI_bi_invert <-%(BI_fi_inj E).
-      apply LBI_axiom.
-    + (* cut is forbidden
-         AND THIS IS WHY THE PROOF WORKS !! *)
-      easy.
-    + intros D B' (D' & [])%(BI_bi_bequiv (BI_bequiv_sym H)) ?.
-      apply LBI_equiv with D'; auto.
-    + intros ? B' (Δ' & Γ' & -> & [])%BI_subst_invert ?.
-      apply LBI_weak, IH; auto.
-    + intros ? B' (Δ' & Γ' & -> & [])%BI_subst_invert ?.
-      apply LBI_cntr, IH; auto.
-    + intros ? B' (Δ' & Γ' & -> & (C & -> & (h' & ->)%BI_fi_invert)%BI_bi_invert & ?)%BI_subst_invert ?.
-      apply LBI_unit_l; auto.
-    + intros ? B' (Δ' & Γ' & -> & (C & -> & (h' & ->)%BI_fi_invert)%BI_bi_invert & ?)%BI_subst_invert ?.
-      apply LBI_unit_l; auto.
-    + intros ? ? ->%BI_bi_invert (h' & ->)%BI_fi_invert.
-      apply LBI_unit_r.
-    + intros ? ? ->%BI_bi_invert (h' & ->)%BI_fi_invert.
-      apply LBI_unit_r.
-    + intros ? ? (Δ' & Γ' & -> & (? & -> & (A' & B' & ? & -> & [])%BI_fi_invert)%BI_bi_invert & ?)%BI_subst_invert ?.
-      apply LBI_conj_l; auto.
-    + intros ? ? (Δ' & Γ' & -> & (? & -> & (A' & B' & ? & -> & [])%BI_fi_invert)%BI_bi_invert & ?)%BI_subst_invert ?.
-      apply LBI_conj_l; auto.
-    + intros ? ? (Γ' & Δ' & -> & [])%BI_bi_invert (A' & B' & ? & -> & [])%BI_fi_invert.
-      apply LBI_conj_r; auto.
-    + intros ? ? (Γ' & Δ' & -> & [])%BI_bi_invert (A' & B' & ? & -> & [])%BI_fi_invert.
-      apply LBI_conj_r; auto.
-    + intros ? ? (Γ' & ? & -> & (Δ' & ? & -> & ? & (? & -> & (A' & B' & ? & -> & [])%BI_fi_invert)%BI_bi_invert)%BI_bi_invert & ?)%BI_subst_invert ?.
-      apply LBI_impl_l; eauto.
-    + intros ? ? (Γ' & ? & -> & (Δ' & ? & -> & ? & (? & -> & (A' & B' & ? & -> & [])%BI_fi_invert)%BI_bi_invert)%BI_bi_invert & ?)%BI_subst_invert ?.
-      apply LBI_impl_l; eauto.
-    + intros ? ? ? (A' & B' & ? & -> & [])%BI_fi_invert.
-      apply LBI_impl_r; auto.
-    + intros ? ? ? (A' & B' & ? & -> & [])%BI_fi_invert.
-      apply LBI_impl_r; auto.
-    + intros ? ? (Γ' & ? & -> & (? & -> & (? & ->)%BI_fi_invert)%BI_bi_invert & ?)%BI_subst_invert ?.
-      apply LBI_bot_l.
-    + intros ? ? (Δ' & ? & -> & (? & -> & (A' & B' & ? & -> & [])%BI_fi_invert)%BI_bi_invert & ?)%BI_subst_invert ?.
-      apply LBI_disj_l; auto.
-    + intros ? ? ? (A' & B' & ? & -> & [])%BI_fi_invert.
-      apply LBI_disj_r1; auto.
-    + intros ? ? ? (A' & B' & ? & -> & [])%BI_fi_invert.
-      apply LBI_disj_r2; auto.
+    1: intros ? ? (? & -> & E)%BI_bi_inv <-%(BI_fi_inj E); auto.
+    1: easy. (* cut is forbidden and THIS IS WHY THE PROOF WORKS !! *)
+    1: intros ? ? (? & [])%(BI_bi_bequiv (BI_bequiv_sym H)) ?; eauto.
+    1,2: intros ? ? (? & ? & -> & [])%BI_ctx_fill_inv ?; eauto.
+    1,2: intros ? ? (? & ? & -> & (? & -> & (? & ->)%BI_fi_inv)%BI_bi_inv & ?)%BI_ctx_fill_inv ?; auto.
+    1,2: intros ? ? ->%BI_bi_inv (h' & ->)%BI_fi_inv; auto.
+    1,2: intros ? ? (? & ? & -> & (? & -> & (? & ? & ? & -> & [])%BI_fi_inv)%BI_bi_inv & ?)%BI_ctx_fill_inv ?; apply LBI_conj_l; auto.
+    1,2: intros ? ? (? & ? & -> & [])%BI_bi_inv (? & ? & ? & -> & [])%BI_fi_inv; auto.
+    1,2: intros ? ? (? & ? & -> & (? & ? & -> & ? & (? & -> & (? & ? & ? & -> & [])%BI_fi_inv)%BI_bi_inv)%BI_bi_inv & ?)%BI_ctx_fill_inv ?; apply LBI_impl_l; auto.
+    1,2: intros ? ? ? (? & ? & ? & -> & [])%BI_fi_inv; auto.
+    1: intros ? ? (Γ' & ? & -> & (? & -> & (? & ->)%BI_fi_inv)%BI_bi_inv & ?)%BI_ctx_fill_inv ?; auto.
+    1: intros ? ? (Δ' & ? & -> & (? & -> & (A' & B' & ? & -> & [])%BI_fi_inv)%BI_bi_inv & ?)%BI_ctx_fill_inv ?; apply LBI_disj_l; auto.
+    1,2: intros ? ? ? (? & ? & ? & -> & [])%BI_fi_inv; auto.
   Qed.
+
+  Corollary LBI_cut_free_conservative µ µ' (Γ : BI_bunch µ prop) A (Δ : BI_bunch µ' prop) B :
+    Γ ≡ᵇ Δ → A ≡ᶠ B → Γ L⊦[BI_cut_free] A <-> Δ L⊦[BI_cut_free] B.
+  Proof. split; apply LBI_cut_free_iso_conservative; auto. Qed.
 
 End convervative_wo_cut.
 
+Arguments BI_form_iso {_ _ _}.
+Arguments BI_bunch_iso {_ _ _}.
+
+#[local] Infix "≡ᶠ" := BI_form_iso.
+#[local] Infix "≡ᵇ" := BI_bunch_iso.
+
+Check LBI_cut_free_conservative.
+
 Section LBI_map_conservative.
+
+  (** We derive conservativity results for the map functions 
+      as straightforward corollaries because the two maps
+      preserve structural identity !! *)
 
   Variables (µ µ' : BI_conn → bool) (Hµ : ∀c, µ c = true → µ' c = true) (prop : Set).
 
@@ -237,29 +261,29 @@ Section LBI_map_conservative.
   Let fmap := @BI_form_map µ µ' Hµ prop _ (λ x, x).
   Let bmap := @BI_bunch_map µ µ' Hµ prop _ (λ x, x).
 
-  (** if Γ ⊦ A is cut-free provable in the larger fragment, it is also
-      provable in the smaller fragment. The converse is much simpler
-      to establish *)
-
   Hint Constructors BI_form_iso BI_bunch_iso : core.
 
-  Local Fact fmap_iso A : BI_form_iso _ _ _ (fmap A) A.
+  Local Fact fmap_iso A : A ≡ᶠ fmap A.
   Proof. induction A; simpl; eauto. Qed.
 
   Hint Resolve fmap_iso : core.
 
-  Local Fact bmap_iso Γ : BI_bunch_iso _ _ _ (bmap Γ) Γ.
+  Local Fact bmap_iso Γ : Γ ≡ᵇ bmap Γ.
   Proof. induction Γ; simpl; eauto. Qed.
 
   Hint Resolve bmap_iso : core.
+
+  (** if Γ ⊦ A is cut-free provable in the larger fragment, it is also
+      provable in the smaller fragment thanks to LBI_cut_free_conservative. 
+      The converse is much simpler to establish using LBI_map_sound which
+      is not restricted to the cut-free fragment. *)
 
   Theorem LBI_cut_free_map_conservative Γ (A : BI_form µ prop) : 
      Γ L⊦[BI_cut_free] A ↔ bmap Γ L⊦[BI_cut_free] fmap A.
   Proof.
     split.
     + apply LBI_map_sound; auto.
-    + intros H.
-      apply LBI_cut_free_conservative with (1 := H); auto.
+    + apply LBI_cut_free_conservative; auto.
   Qed.
 
 End LBI_map_conservative.
