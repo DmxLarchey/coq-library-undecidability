@@ -124,23 +124,23 @@ Section LBI_full_HBI.
   Fact HBI_conj_idem A : H⊦ A⇒A⩑A.
   Proof. solve with HIL_conj_idem. Qed.
 
-  Fact HBI_imp_adj_1_form A B C : H⊦ (A⇒B⇒C)⇒(A⩑B⇒C).
+  Fact HBI_imp_adj_1_form A B C : H⊦ (A⇒B⇒C)⇒(B⩑A⇒C).
   Proof. solve with HIL_imp_adj_1. Qed.
 
-  Fact HBI_imp_adj_2_form A B C : H⊦ (A⩑B⇒C)⇒(A⇒B⇒C).
+  Fact HBI_imp_adj_2_form A B C : H⊦ (B⩑A⇒C)⇒(A⇒B⇒C).
   Proof. solve with HIL_imp_adj_2. Qed.
 
   Fact HBI_imp_adj A B : H⊦ (A⩑(A⇒B))⇒B.
   Proof. solve with HIL_imp_adj. Qed.
 
-  Fact HBI_imp_adj_1 A B C : H⊦ A⇒B⇒C → H⊦ (A⩑B⇒C).
+  Fact HBI_imp_adj_1 A B C : H⊦ A⇒B⇒C → H⊦ (B⩑A⇒C).
   Proof. intros; now apply HBI_MP with (2 := HBI_imp_adj_1_form _ _ _). Qed.
 
-  Fact HBI_imp_adj_2 A B C : H⊦ A⩑B⇒C → H⊦ A⇒B⇒C.
+  Fact HBI_imp_adj_2 A B C : H⊦ B⩑A⇒C → H⊦ A⇒B⇒C.
   Proof. intros; now apply HBI_MP with (2 := HBI_imp_adj_2_form _ _ _). Qed.
 
   Fact HBI_top_conj_1_l A : H⊦ ⊤⩑A⇒A.
-  Proof. apply HBI_imp_adj_1, HBI_weak_l, HBI_id. Qed.
+  Proof. apply HBI_imp_adj_1, HBI_weak_r, HBI_id. Qed.
 
   Fact HBI_top_conj_2_l A : H⊦ A⇒⊤⩑A.
   Proof. apply HBI_conj_top. Qed.
@@ -197,10 +197,10 @@ Section LBI_full_HBI.
   Fact HBI_mult_assoc_1 A B C : H⊦ A∗(B∗C)⇒(A∗B)∗C.
   Proof. constructor 1; eauto. Qed.
 
-  Fact HBI_wand_adj_1 A B C : H⊦ A⇒(B-∗C) → H⊦ (A∗B)⇒C.
+  Fact HBI_wand_adj_1 A B C : H⊦ A⇒(B-∗C) → H⊦ (B∗A)⇒C.
   Proof. now constructor 4. Qed.
 
-  Fact HBI_wand_adj_2 A B C : H⊦ (A∗B)⇒C → H⊦ A⇒(B-∗C).
+  Fact HBI_wand_adj_2 A B C : H⊦ (B∗A)⇒C → H⊦ A⇒(B-∗C).
   Proof. now constructor 5. Qed.
 
   Fact HBI_unit_mult_1_l A : H⊦ 1∗A⇒A.
@@ -228,26 +228,26 @@ Section LBI_full_HBI.
   Proof. apply HBI_trans with (2 := HBI_mult_comm _ _), HBI_unit_mult_2_l. Qed.
 
   Fact HBI_wand_adj A B : H⊦ (A∗(A-∗B))⇒B.
-  Proof. apply HBI_trans with (1 := HBI_mult_comm _ _), HBI_wand_adj_1, HBI_id. Qed.
-
-  Fact HBI_mult_disj_l A B C : H⊦ (B⩒C)∗A⇒(B∗A)⩒(C∗A).
-  Proof. apply HBI_wand_adj_1, HBI_disj_lub; apply HBI_wand_adj_2; constructor 1; auto. Qed.
+  Proof. apply HBI_wand_adj_1, HBI_id. Qed.
 
   Fact HBI_mult_disj_r A B C : H⊦ A∗(B⩒C)⇒(A∗B)⩒(A∗C).
+  Proof. apply HBI_wand_adj_1, HBI_disj_lub; apply HBI_wand_adj_2; constructor 1; auto. Qed.
+
+  Fact HBI_mult_disj_l A B C : H⊦ (B⩒C)∗A⇒(B∗A)⩒(C∗A).
   Proof. 
     apply HBI_trans with (1 := HBI_mult_comm _ _),
-          HBI_trans with (1 := HBI_mult_disj_l _ _ _),
+          HBI_trans with (1 := HBI_mult_disj_r _ _ _),
           HBI_disj_lub;
     apply HBI_trans with (1 := HBI_mult_comm _ _); constructor 1; auto.
   Qed.
 
-  Fact HBI_bot_mult_l A : H⊦ ⊥∗A⇒⊥.
+  Fact HBI_bot_mult_r A : H⊦ A∗⊥⇒⊥.
   Proof. apply HBI_wand_adj_1, HBI_bot_elim. Qed.
 
-  Fact HBI_bot_mult_r A : H⊦ A∗⊥⇒⊥.
+  Fact HBI_bot_mult_l A : H⊦ ⊥∗A⇒⊥.
   Proof.
     apply HBI_trans with (1 := HBI_mult_comm _ _).
-    apply HBI_bot_mult_l.
+    apply HBI_bot_mult_r.
   Qed.
 
   Reserved Notation "⟪ Σ ⟫" (at level 0, format "⟪ Σ ⟫").
@@ -380,8 +380,9 @@ Section LBI_full_HBI.
                      | A B C _ IH
                      ].
       + destruct H as [ A B | A B C | A B | A B | A B | A B | A B | A B C | A | ]; auto.
-        * apply LBI_impl_r, LBI_neut_l, LBI_impl_r; rule LBI_weak at [rt].
-        * apply LBI_impl_r, LBI_equiv with (1 := BI_bequiv_sym (BI_bequiv_neut _ _)).
+        * apply LBI_impl_r, LBI_neut_r, LBI_impl_r; rule LBI_weak at [lft].
+        * apply LBI_impl_r. apply LBI_equiv with (1 := BI_bequiv_comm _ _ _).
+          apply LBI_equiv with (1 := BI_bequiv_sym (BI_bequiv_neut _ _)).
           do 2 apply LBI_impl_r.
           rule LBI_cntr at [rt].
           apply LBI_equiv with ((⟨A⟩ ⊛ₐ ⟨A⇒B⟩) ⊛ₐ (⟨A⟩ ⊛ₐ ⟨A⇒B⇒C⟩)).
@@ -389,7 +390,7 @@ Section LBI_full_HBI.
             apply BI_bequiv_trans with (1 := BI_bequiv_assoc _ _ _ _).
             apply BI_bequiv_trans with (1 := BI_bequiv_comm _ _ _).
             apply BI_bequiv_trans with (1 := BI_bequiv_assoc _ _ _ _).
-            apply BI_bequiv_trans with (2 := BI_bequiv_sym (BI_bequiv_assoc _ _ _ _)).
+            apply BI_bequiv_trans with (2 :=  (BI_bequiv_assoc _ _ _ _)).
             apply BI_bequiv_congr.
             apply BI_bequiv_trans with (1 := BI_bequiv_comm _ _ _).
             apply BI_bequiv_trans with (1 := BI_bequiv_sym (BI_bequiv_assoc _ _ _ _)); eauto.

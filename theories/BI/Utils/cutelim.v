@@ -215,13 +215,13 @@ Section Relational_phase_semantics.
   Fact cl_stable_r_imp_stable : cl_stability_r → cl_stability.
   Proof using cl_commute cl_idempotent cl_increase cl_monotone. auto. Qed.
 
-  Hypothesis cl_stable_l : cl_stability_l.
+  Hypothesis cl_stable_r : cl_stability_r.
 
-  Fact cl_stable_r : cl_stability_r.
-  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_l. auto. Qed.
+  Fact cl_stable_l : cl_stability_l.
+  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_r. auto. Qed.
 
   Fact cl_stable : cl_stability.
-  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_l. auto. Qed.
+  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_r. auto. Qed.
 
   Hint Resolve cl_stable_r cl_stable : core.
 
@@ -229,16 +229,16 @@ Section Relational_phase_semantics.
   Hypothesis cl_neutral_2 : cl_neutrality_2.
   Hypothesis cl_associative : cl_associativity.
 
-  Definition magicwand A B k := sg k ∘ A ⊆ B.
+  Definition magicwand A B k := A ∘ sg k  ⊆ B.
   Infix "⊸" := magicwand.
 
-  Fact magicwand_spec A B C : A∘B ⊆ C ↔ A ⊆ B⊸C.
+  Fact magicwand_spec A B C : B∘A ⊆ C ↔ A ⊆ B⊸C.
   Proof.
     split; intros H x Hx.
     + intros y Hy; apply H; revert Hy; apply composes_monotone; auto.
       now apply sg_inc.
     + destruct Hx as [ a b x Ha Hb Hx ].
-      apply (H _ Ha).
+      apply (H _ Hb).
       constructor 1 with a b; try red; auto.
   Qed.
 
@@ -248,15 +248,14 @@ Section Relational_phase_semantics.
   Fact magicwand_monotone A A' B B' : A ⊆ A' → B ⊆ B' → A'⊸B ⊆ A⊸B'.
   Proof.
     intros ? HB; apply magicwand_adj_1, inc_trans with (2 := HB).
-    intros _ [? ? ? Ha ? Hc]; apply Ha, In_composes with (3 := Hc); auto.
+    intros _ [? ? ? ? Ha Hc]; apply Ha, In_composes with (3 := Hc); auto.
   Qed.
 
   Hint Resolve magicwand_monotone : core.
 
   Fact cl_magicwand_1 X Y : cl (X⊸cl Y) ⊆ X⊸cl Y.
-  Proof using cl_idempotent cl_increase cl_monotone cl_stable_l. 
-    apply magicwand_adj_1, 
-          inc_trans with (B := cl ((X⊸cl Y)∘X)); auto.
+  Proof using cl_idempotent cl_increase cl_monotone cl_stable_r. 
+    apply magicwand_adj_1, inc_trans with (1 := cl_stable_r _ _ ).
     rewrite <- cl_prop; apply magicwand_spec; auto. 
   Qed.
 
@@ -266,19 +265,16 @@ Section Relational_phase_semantics.
   Hint Resolve cl_magicwand_1 cl_magicwand_2 : core.
 
   Fact cl_magicwand_3 X Y : X ⊸ cl Y ⊆ cl X ⊸ cl Y.
-  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_l.
-    intros c Hc y.
-    apply inc_trans with (B := cl (sg c ∘ X)); auto.
-    rewrite <- cl_prop.
-    intros ? [ a b d [] Hb ].
-    intros; apply Hc. 
-    constructor 1 with c b; auto.
+  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_r.
+    apply magicwand_spec.
+    apply inc_trans with (1 := cl_stable_l _ _); auto. 
+    rewrite <- cl_prop; apply magicwand_spec; auto.
   Qed.
 
   Hint Resolve cl_magicwand_3 : core.
 
   Fact closed_magicwand X Y : closed Y → closed (X⊸Y).
-  Proof using cl_idempotent cl_increase cl_monotone cl_stable_l.
+  Proof using cl_idempotent cl_increase cl_monotone cl_stable_r.
     clear cl_commute. 
     simpl; intro.
     apply inc_trans with (B := cl (X ⊸ cl Y)); auto.
@@ -290,34 +286,34 @@ Section Relational_phase_semantics.
   Hint Resolve closed_magicwand : core.
 
   Fact magicwand_eq_1 X Y : X ⊸ cl Y ≃ cl X ⊸ cl Y.
-  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_l. split; auto. Qed.
+  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_r. split; auto. Qed.
 
   Fact magicwand_eq_2 X Y : cl (X ⊸ cl Y) ≃ X ⊸ cl Y.
-  Proof using cl_idempotent cl_increase cl_monotone cl_stable_l. clear cl_commute; split; auto. Qed.
+  Proof using cl_idempotent cl_increase cl_monotone cl_stable_r. clear cl_commute; split; auto. Qed.
 
   Fact magicwand_eq_3 X Y : cl (X ⊸ cl Y) ≃ cl X ⊸ cl Y.
-  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_l.
+  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_r.
     split; auto.
   Qed.
 
   Hint Resolve magicwand_eq_1 magicwand_eq_2 magicwand_eq_3 : core.
 
   Fact cl_equiv_2 X Y : cl (cl X ∘ Y) ≃ cl (X ∘ Y).
-  Proof using cl_idempotent cl_increase cl_monotone cl_stable_l. 
+  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_r.
     split.
     + rewrite <- cl_prop; auto.
     + apply cl_monotone, composes_monotone; auto.
   Qed.
 
   Fact cl_equiv_3 X Y : cl (X ∘ cl Y) ≃ cl (X ∘ Y).
-  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_l.
+  Proof using cl_idempotent cl_increase cl_monotone cl_stable_r.
     split.
     + rewrite <- cl_prop; auto.
     + apply cl_monotone, composes_monotone; auto.
   Qed.
 
   Fact cl_equiv_4 X Y : cl (cl X ∘ cl Y) ≃ cl (X ∘ Y).
-  Proof using cl cl_commute cl_idempotent cl_increase cl_monotone cl_stable_l. 
+  Proof using cl cl_commute cl_idempotent cl_increase cl_monotone cl_stable_r. 
     split.
     + rewrite <- cl_prop; auto.
     + apply cl_monotone, composes_monotone; auto.
@@ -339,7 +335,7 @@ Section Relational_phase_semantics.
   Hint Resolve composes_associative_1 composes_monotone : core.
 
   Fact composes_associative A B C : cl (A∘(B∘C)) ≃ cl ((A∘B)∘C).
-  Proof using cl_associative cl_commute cl_idempotent cl_increase cl_monotone cl_stable_l.
+  Proof using cl_associative cl_commute cl_idempotent cl_increase cl_monotone cl_stable_r.
     split; auto.
     1: rewrite <- cl_prop; auto.
     rewrite <- cl_prop; auto.
@@ -365,7 +361,7 @@ Section Relational_phase_semantics.
   Hint Resolve composes_associative : core.
 
   Fact composes_congruent_1 A B C : A ⊆ cl B → C ∘ A ⊆ cl (C ∘ B).
-  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_l.
+  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_r.
     intro.
     apply inc_trans with (B := cl (C ∘ cl B)); auto.
     + apply cl_prop, cl_monotone, composes_monotone; auto.
@@ -375,7 +371,7 @@ Section Relational_phase_semantics.
   Hint Resolve composes_congruent_1 : core.
 
   Fact composes_congruent A B C : cl A ≃ cl B → cl (C ∘ A) ≃ cl (C ∘ B).
-  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_l. 
+  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_r. 
     intros [H1 H2].
     rewrite <- cl_prop in H1.
     rewrite <- cl_prop in H2.
@@ -384,7 +380,7 @@ Section Relational_phase_semantics.
   Qed.
 
   Fact composes_assoc_special A A' B B' : cl((A∘A') ∘ (B∘B')) ≃ cl ((A∘B) ∘ (A'∘B')).
-  Proof using cl_associative cl_commute cl_idempotent cl_increase cl_monotone cl_stable_l.
+  Proof using cl_associative cl_commute cl_idempotent cl_increase cl_monotone cl_stable_r.
     do 2 apply equiv_sym, equiv_trans with (2 := composes_associative _ _ _).
     apply composes_congruent.
     apply equiv_sym, equiv_trans with (1 := composes_commute _ _).
@@ -471,7 +467,7 @@ Section Relational_phase_semantics.
   Qed.
 
   Fact unit_neutral_1 A : closed A → unit ⊛ A ⊆ A.
-  Proof using cl_idempotent cl_increase cl_monotone cl_neutral_2 cl_stable_l. 
+  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_neutral_2 cl_stable_r. 
     intros H; apply inc_trans with (2 := H).
     rewrite <- cl_prop.
     apply inc_trans with (1 := @cl_stable_l _ _).
@@ -487,7 +483,7 @@ Section Relational_phase_semantics.
   Qed.
 
   Fact unit_neutral A : closed A → unit ⊛ A ≃ A.
-  Proof using cl_idempotent cl_increase cl_monotone cl_neutral_1 cl_neutral_2 cl_stable_l. 
+  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_neutral_1 cl_neutral_2 cl_stable_r. 
     intros H; split. 
     + revert H; apply unit_neutral_1.
     + apply unit_neutral_2.
@@ -508,31 +504,31 @@ Section Relational_phase_semantics.
   Qed.
 
   Fact unit_neutral' A : closed A → A ⊛ unit ≃ A.
-  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_neutral_1 cl_neutral_2 cl_stable_l.
+  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_neutral_1 cl_neutral_2 cl_stable_r.
     intros ?; apply equiv_trans with (1 := times_commute _ _); auto.
   Qed.
 
   Fact times_associative A B C : (A⊛B)⊛C ≃ A⊛(B⊛C).
-  Proof using cl_associative cl_commute cl_idempotent cl_increase cl_monotone cl_stable_l.
+  Proof using cl_associative cl_commute cl_idempotent cl_increase cl_monotone cl_stable_r.
     apply equiv_sym, equiv_trans with (1 := cl_equiv_3 _ _ ).
     apply equiv_sym, equiv_trans with (1 := cl_equiv_2 _ _ ).
     apply equiv_sym, composes_associative.
   Qed.
 
   Fact times_associative_1 A B C : (A⊛B)⊛C ⊆ A⊛(B⊛C).
-  Proof using cl_associative cl_commute cl_idempotent cl_increase cl_monotone cl_stable_l.
+  Proof using cl_associative cl_commute cl_idempotent cl_increase cl_monotone cl_stable_r.
     apply times_associative.
   Qed.
 
   Fact times_associative_2 A B C : A⊛(B⊛C) ⊆ (A⊛B)⊛C.
-  Proof using cl_associative cl_commute cl_idempotent cl_increase cl_monotone cl_stable_l.
+  Proof using cl_associative cl_commute cl_idempotent cl_increase cl_monotone cl_stable_r.
     apply times_associative.
   Qed.
 
   Hint Resolve times_associative_1 times_associative_2 : core.
 
   Fact times_congruence A A' B B' : A ≃ A' → B ≃ B' → A⊛B ≃ A'⊛B'.
-  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_l. 
+  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_r. 
     intros H1 H2.
     apply equiv_trans with (A ⊛ B').
     apply composes_congruent; auto.
@@ -540,46 +536,46 @@ Section Relational_phase_semantics.
     apply composes_congruent; auto.
   Qed.
 
-  Fact adjunction_1 A B C : closed C → A ⊛ B ⊆ C → A ⊆ B ⊸ C.
+  Fact adjunction_1 A B C : closed C → B ⊛ A  ⊆ C → A ⊆ B ⊸ C.
   Proof using cl_increase.
     intros ? H; apply magicwand_adj_1, inc_trans with (2 := H); auto.
   Qed.
 
-  Fact adjunction_2 A B C : closed C → A ⊆ B ⊸ C → A ⊛ B ⊆ C.
+  Fact adjunction_2 A B C : closed C → A ⊆ B ⊸ C → B ⊛ A ⊆ C.
   Proof using cl_increase cl_monotone.
     intros H ?; apply inc_trans with (2 := H), cl_monotone, magicwand_adj_2; auto.
   Qed.
 
   Hint Resolve times_congruence adjunction_1 (* adjunction_2 *) : core.
 
-  Fact adjunction A B C : closed C → A ⊛ B ⊆ C ↔ A ⊆ B ⊸ C.
+  Fact adjunction A B C : closed C → B ⊛ A ⊆ C ↔ A ⊆ B ⊸ C.
   Proof using cl_increase cl_monotone.
     split; [ apply adjunction_1 | apply  adjunction_2 ]; auto.
   Qed.
 
-  Fact times_bot_distrib_l A : bot ⊛ A ⊆ bot.
-  Proof using cl_idempotent cl_increase cl_monotone cl_stable_l.
+  Fact times_bot_distrib_l A : A ⊛ bot ⊆ bot.
+  Proof using cl_idempotent cl_increase cl_monotone cl_stable_r.
     clear cl_commute.
     apply adjunction_2; auto.
     apply bot_least; auto.
   Qed.
 
-  Fact times_bot_distrib_r A : A ⊛ bot ⊆ bot.
-  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_l.
+  Fact times_bot_distrib_r A : bot ⊛ A ⊆ bot.
+  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_r.
     apply inc_trans with (1 := @times_commute_1 _ _), times_bot_distrib_l.
   Qed.
 
   Hint Immediate times_bot_distrib_l times_bot_distrib_r : core.
 
-  Fact times_lub_distrib_l A B C : (A lub B) ⊛ C ⊆ (A ⊛ C) lub (B ⊛ C).
-  Proof using cl_idempotent cl_increase cl_monotone cl_stable_l.
+  Fact times_lub_distrib_l A B C : C ⊛ (A lub B) ⊆ (C ⊛ A) lub (C ⊛ B).
+  Proof using cl_idempotent cl_increase cl_monotone cl_stable_r.
     clear cl_commute. 
     apply adjunction, lub_out; auto;
     apply adjunction; auto.
   Qed.
 
-  Fact times_lub_distrib_r A B C : C ⊛ (A lub B) ⊆ (C ⊛ A) lub (C ⊛ B).
-  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_l. 
+  Fact times_lub_distrib_r A B C : (A lub B) ⊛ C ⊆ (A ⊛ C) lub (B ⊛ C).
+  Proof using cl_commute cl_idempotent cl_increase cl_monotone cl_stable_r. 
     apply inc_trans with (1 := @times_commute_1 _ _),
           inc_trans with (1 := @times_lub_distrib_l _ _ _); auto.
     apply lub_out; auto.
@@ -604,7 +600,7 @@ Section Rel_sem_BI.
   Infix "⊸" := (magicwand _ comp_m).
   Abbreviation eₘ := unit_m.
 
-  Hypothesis cl_stable_m_l : ∀ A B, cl A ∘ B ⊆ cl (A ∘ B).
+  Hypothesis cl_stable_m_r : ∀ A B, A ∘ cl B ⊆ cl (A ∘ B).
   Hypothesis cl_neutral_1_m : ∀x, cl (sg eₘ ∘ sg x) x.
   Hypothesis cl_neutral_2_m : ∀x, sg eₘ ∘ sg x ⊆ cl (sg x).
   Hypothesis cl_commute_m : ∀ x y, sg x ∘ sg y ⊆ cl (sg y ∘ sg x).
@@ -614,7 +610,7 @@ Section Rel_sem_BI.
   Infix "-⨣" := (magicwand _ comp_a).
   Abbreviation eₐ := unit_a.
 
-  Hypothesis cl_stable_a_l : ∀ A B, cl A ⨣ B ⊆ cl (A ⨣ B).
+  Hypothesis cl_stable_a_r : ∀ A B, A ⨣ cl B ⊆ cl (A ⨣ B).
   Hypothesis cl_neutral_1_a : ∀x, cl (sg eₐ ⨣ sg x) x.
   Hypothesis cl_neutral_2_a : ∀x, sg eₐ ⨣ sg x ⊆ cl (sg x).
   Hypothesis cl_commute_a : ∀ x y, sg x ⨣ sg y ⊆ cl (sg y ⨣ sg x).
@@ -650,7 +646,7 @@ Section Rel_sem_BI.
     where "⟦ A ⟧ᶠ" := (sem_form A).
 
     Fact sem_form_closed A : closed ⟦A⟧ᶠ.
-    Proof using cl_idempotent cl_increase cl_monotone cl_stable_a_l cl_stable_m_l cl_weak Hφ.
+    Proof using cl_idempotent cl_increase cl_monotone cl_stable_a_r cl_stable_m_r cl_weak Hφ.
       induction A as [ | [] | [] | [] | | ]; simpl; eauto using closed_magicwand.
     Qed.
 
@@ -685,7 +681,7 @@ Section Rel_sem_BI.
                 cl_idempotent cl_increase cl_monotone
                 cl_neutral_1_a cl_neutral_1_m 
                 cl_neutral_2_a cl_neutral_2_m
-                cl_stable_a_l cl_stable_m_l
+                cl_stable_a_r cl_stable_m_r
                 Hφ.
       induction 1 as [ | | | [] | [] | [] | [] ]; eauto.
       + apply unit_neutral; auto.
@@ -711,18 +707,18 @@ Section Rel_sem_BI.
     Qed.
 
     Fact sem_ctx_bot φ Σ Δ : sem_bunch φ Δ ⊆ bot → sem_bunch φ Σ[Δ] ⊆ bot.
-    Proof using  cl_commute_a cl_commute_m cl_idempotent cl_increase cl_monotone cl_stable_a_l cl_stable_m_l.
+    Proof using  cl_commute_a cl_commute_m cl_idempotent cl_increase cl_monotone cl_stable_a_r cl_stable_m_r.
       intros Hdelta.
       induction Σ as [ | [] [] G D IH ]; simpl; auto.
-      1,2: apply inc_trans with (1 := times_monotone _ _ cl_monotone _ _ _ _ _ (inc_refl _ _) IH); apply times_bot_distrib_r; auto.
-      1,2: apply inc_trans with (1 := times_monotone _ _ cl_monotone _ _ _ _ _ IH (inc_refl _ _)); apply times_bot_distrib_l; auto.
+      1,2: apply inc_trans with (1 := times_monotone _ _ cl_monotone _ _ _ _ _ (inc_refl _ _) IH); apply times_bot_distrib_l; auto.
+      1,2: apply inc_trans with (1 := times_monotone _ _ cl_monotone _ _ _ _ _ IH (inc_refl _ _)); apply times_bot_distrib_r; auto.
     Qed.
 
     Fact sem_ctx_lub φ Σ A B (h : µ BI_disj = true) : sem_bunch (sem_form φ) Σ[⟨BI_form_disj h A B⟩] ⊆ sem_bunch (sem_form φ) Σ[⟨A⟩] lub sem_bunch (sem_form φ) Σ[⟨B⟩].
-    Proof using cl_commute_a cl_commute_m cl_idempotent cl_increase cl_monotone cl_stable_a_l cl_stable_m_l.
+    Proof using cl_commute_a cl_commute_m cl_idempotent cl_increase cl_monotone cl_stable_a_r cl_stable_m_r.
       induction Σ as [ | [] [] G D IH ]; simpl; auto.
-      1,2: apply inc_trans with (1 := times_monotone _ _ cl_monotone _ _ _ _ _ (inc_refl _ _) IH); eapply inc_trans; [ apply times_lub_distrib_r | ]; auto.
-      1,2: apply inc_trans with (1 := times_monotone _ _ cl_monotone _ _ _ _ _ IH (inc_refl _ _)); eapply inc_trans; [ apply times_lub_distrib_l | ]; auto.
+      1,2: apply inc_trans with (1 := times_monotone _ _ cl_monotone _ _ _ _ _ (inc_refl _ _) IH); eapply inc_trans; [ apply times_lub_distrib_l | ]; auto.
+      1,2: apply inc_trans with (1 := times_monotone _ _ cl_monotone _ _ _ _ _ IH (inc_refl _ _)); eapply inc_trans; [ apply times_lub_distrib_r | ]; auto.
     Qed. 
 
   End sem_ctx.
@@ -737,7 +733,7 @@ Section Rel_sem_BI.
               cl_neutral_2_a cl_neutral_2_m
               cl_associative_a cl_associative_m
               cl_commute_a cl_commute_m 
-              cl_stable_a_l cl_stable_m_l
+              cl_stable_a_r cl_stable_m_r
               cl_cntr cl_weak
               Hφ.
     induction 1 as [ 
@@ -775,19 +771,13 @@ Section Rel_sem_BI.
     + simpl; apply times_monotone; auto.
     + simpl; apply times_monotone; auto.
     + apply inc_trans with (2 := IH2), sem_ctx_monotone; simpl.
-      eapply inc_trans; [ apply composes_commute; auto | ].
       apply cl_closed; auto.
       apply magicwand_spec, magicwand_monotone; auto.
     + apply inc_trans with (2 := IH2), sem_ctx_monotone; simpl.
-      eapply inc_trans; [ apply composes_commute; auto | ].
       apply cl_closed; auto.
       apply magicwand_spec, magicwand_monotone; auto.
-    + simpl.
-      apply magicwand_spec, inc_trans with (2 := IH).
-      simpl; auto.
-    + simpl.
-      apply magicwand_spec, inc_trans with (2 := IH).
-      simpl; auto.
+    + apply magicwand_spec, inc_trans with (2 := IH); simpl; auto.
+    + apply magicwand_spec, inc_trans with (2 := IH); simpl; auto.
     + eapply inc_trans; [ apply sem_ctx_bot | apply bot_least ]; auto.
     + eapply inc_trans; [ apply sem_ctx_lub | ].
       apply lub_out; auto.
@@ -833,17 +823,20 @@ Section LBI_cut_elim.
   Hint Resolve cl_monotone cl_increase cl_idempotent : core.
 
   (** The relational bi-monoidal structure *)
+  
+  Let comp k (Γ Δ Θ : M) := Γ ⊛[k] Δ ≡ Θ.
+  
+  Notation "X '⊚[' k ']' Y" := (composes _ (comp k) X Y) (at level 50, no associativity, format "X  ⊚[ k ]  Y").
+  Notation "X '-⊚[' k ']' Y" := (magicwand _ (comp k) X Y) (at level 51, right associativity, format "X  -⊚[ k ]  Y").
+  Let unit k : M := ø[k].
 
-  Let comp_m (Γ Δ Θ : M) := Γ ⊛ₘ Δ ≡ Θ.    Let unit_m : M := øₘ.
-  Let comp_a (Γ Δ Θ : M) := Γ ⊛ₐ Δ ≡ Θ.    Let unit_a : M := øₐ.
+  Infix "∘" := (composes _ (comp BI_mult)).
+  Infix "⊸" := (magicwand _ (comp BI_mult)).
+  Abbreviation eₘ := ø[BI_mult].
 
-  Infix "∘" := (composes _ comp_m).
-  Infix "⊸" := (magicwand _ comp_m).
-  Abbreviation eₘ := unit_m.
-
-  Infix "⨣" := (composes _ comp_a).
-  Infix "-⨣" := (magicwand _ comp_a).
-  Abbreviation eₐ := unit_a.
+  Infix "⨣" := (composes _ (comp BI_addi)).
+  Infix "-⨣" := (magicwand _ (comp BI_addi)).
+  Abbreviation eₐ := ø[BI_addi].
 
   Hint Constructors BI_bunch_equiv composes : core.
 
@@ -860,23 +853,29 @@ Section LBI_cut_elim.
 
      derivable from the composition of contexts *)
      
-  Local Fact cl_stable_m_l X Y : cl X ∘ Y ⊆ cl (X ∘ Y).
+  Local Fact cl_stable_r k X Y : X ⊚[k] cl Y ⊆ cl (X ⊚[k] Y).
   Proof.
-    intros _ [ Γ Δ Θ H1 H2 H3 ]; red in H1, H3.
+    intros _ [ Γ Δ Θ H1 H2 H3 ]; red in H2, H3.
     apply cl_bequiv with (1 := H3).
     intros Σ A HA.
-    change (Σ[Γ ⊛ₘ Δ])
-    with    (Σ[(BI_ctx_comp BI_right BI_mult Δ (BI_ctx_hole _ _))[Γ]]).
+    change (Σ[Γ ⊛[k] Δ])
+    with    (Σ[(BI_ctx_comp BI_left k Γ (BI_ctx_hole _ _))[Δ]]).
     rewrite BI_ctx_compose_subst.
-    apply H1.
+    apply H2.
     intros D HD.
     rewrite <- BI_ctx_compose_subst; simpl.
     apply HA.
-    exists D Δ; try red; auto.
+    exists Γ D; try red; auto.
   Qed.
 
-  Local Fact cl_neutral_1_m Γ : cl (sg eₘ ∘ sg Γ) Γ.
-  Proof. intros Σ A H; apply H; exists øₘ Γ; red; auto. Qed.
+  Local Fact cl_stable_m_r X Y : X ∘ cl Y ⊆ cl (X ∘ Y). Proof. apply cl_stable_r. Qed.
+  Local Fact cl_stable_a_r X Y : X ⨣ cl Y ⊆ cl (X ⨣ Y). Proof. apply cl_stable_r. Qed.
+
+  Local Fact cl_neutral_1 k Γ : cl (sg ø[k] ⊚[k] sg Γ) Γ.
+  Proof. intros Σ A H; apply H; exists (unit k) Γ; red; auto. Qed.
+
+  Local Fact cl_neutral_1_m Γ : cl (sg eₘ ∘ sg Γ) Γ. Proof. apply cl_neutral_1. Qed.
+  Local Fact cl_neutral_1_a Γ : cl (sg eₐ ⨣ sg Γ) Γ. Proof. apply cl_neutral_1. Qed.
 
   Hint Resolve BI_bequiv_ctx : core.
   
@@ -884,73 +883,36 @@ Section LBI_cut_elim.
   Proof. apply cl_increase; auto. Qed.
   
   Hint Resolve cl_sg : core.
-
-  Local Fact cl_neutral_2_m Γ : sg eₘ ∘ sg Γ ⊆ cl (sg Γ).
+  
+  Local Fact cl_neutral_2 k Γ : sg ø[k] ⊚[k] sg Γ ⊆ cl (sg Γ).
   Proof. intros _ [ ? ? ? <- <- ?]; apply cl_bequiv with Γ; eauto. Qed.
+  
+  Local Fact cl_neutral_2_m Γ : sg eₘ ∘ sg Γ ⊆ cl (sg Γ). Proof. apply cl_neutral_2. Qed.
+  Local Fact cl_neutral_2_a Γ : sg eₐ ⨣ sg Γ ⊆ cl (sg Γ). Proof. apply cl_neutral_2. Qed.
 
-  Local Fact cl_commute_m Γ Δ : sg Γ ∘ sg Δ ⊆ cl (sg Δ ∘ sg Γ).
+  Local Fact cl_commute k Γ Δ : sg Γ ⊚[k] sg Δ ⊆ cl (sg Δ ⊚[k] sg Γ).
   Proof.
     intros _ [ ? ? Θ <- <- H ].
-    apply cl_bequiv with (Δ ⊛ₘ Γ); eauto.
+    apply cl_bequiv with (Δ ⊛[k] Γ); eauto.
     apply cl_increase; eauto.
     exists Δ Γ; try red; auto.
   Qed.
 
-  Local Fact cl_associative_m Γ Δ Θ : sg Γ ∘ (sg Δ ∘ sg Θ) ⊆ cl ((sg Γ ∘ sg Δ) ∘ sg Θ).
+  Local Fact cl_commute_m Γ Δ : sg Γ ∘ sg Δ ⊆ cl (sg Δ ∘ sg Γ).  Proof. apply cl_commute. Qed.
+  Local Fact cl_commute_a Γ Δ : sg Γ ⨣ sg Δ ⊆ cl (sg Δ ⨣ sg Γ).  Proof. apply cl_commute. Qed.
+  
+  Local Fact cl_associative k Γ Δ Θ : sg Γ ⊚[k] (sg Δ ⊚[k] sg Θ) ⊆ cl ((sg Γ ⊚[k] sg Δ) ⊚[k] sg Θ).
   Proof.
     intros _ [ _ _ D <- [ _ _ C <- <- H1 ] H2 ].
-    apply cl_bequiv with ((Γ ⊛ₘ Δ) ⊛ₘ Θ); auto.
+    apply cl_bequiv with ((Γ ⊛[k] Δ) ⊛[k] Θ); auto.
     + red in H1, H2; eauto.
     + apply cl_increase.
-      exists (Γ ⊛ₘ Δ) Θ; try red; auto.
+      exists (Γ ⊛[k] Δ) Θ; try red; auto.
       exists Γ Δ; try red; auto.
   Qed.
 
-  Local Fact cl_stable_a_l X Y : cl X ⨣ Y ⊆ cl (X ⨣ Y).
-  Proof.
-    intros _ [ Γ Δ Θ H1 H2 H3 ] Σ A H; red in H3.
-    apply BI_bequiv_ctx with (Σ := Σ) in H3.
-    apply LBI_equiv with (1 := H3).
-    red in H1.
-    change (Σ[Γ ⊛ₐ Δ])
-    with    (Σ[(BI_ctx_comp BI_right BI_addi Δ (BI_ctx_hole _ _))[Γ]]).
-    rewrite BI_ctx_compose_subst.
-    apply H1.
-    intros D HD.
-    rewrite <- BI_ctx_compose_subst; simpl.
-    apply H.
-    exists D Δ; try red; auto.
-  Qed.
-
-  Local Fact cl_neutral_1_a Γ : cl (sg eₐ ⨣ sg Γ) Γ.
-  Proof.
-    intros Σ A H; apply H.
-    exists øₐ Γ; red; auto.
-  Qed.
-
-  Local Fact cl_neutral_2_a Γ : sg eₐ ⨣ sg Γ ⊆ cl (sg Γ).
-  Proof.
-    intros _ [ ? ? Δ <- <- H].
-    apply cl_bequiv with Γ; eauto.
-  Qed.
-
-  Local Fact cl_commute_a Γ Δ : sg Γ ⨣ sg Δ ⊆ cl (sg Δ ⨣ sg Γ).
-  Proof.
-    intros _ [ ? ? Θ <- <- H ].
-    apply cl_bequiv with (Δ ⊛ₐ Γ); eauto.
-    apply cl_increase; eauto.
-    exists Δ Γ; red; auto.
-  Qed.
-
-  Local Fact cl_associative_a Γ Δ Θ : sg Γ ⨣ (sg Δ ⨣ sg Θ) ⊆ cl ((sg Γ ⨣ sg Δ) ⨣ sg Θ).
-  Proof.
-    intros _ [ _ _ D <- [ _ _ C <- <- H1 ] H2 ].
-    apply cl_bequiv with ((Γ ⊛ₐ Δ) ⊛ₐ Θ); auto.
-    + red in H1, H2; eauto.
-    + apply cl_increase.
-      exists (Γ ⊛ₐ Δ) Θ; try red; auto.
-      exists Γ Δ; try red; auto.
-  Qed.
+  Local Fact cl_associative_m Γ Δ Θ : sg Γ ∘ (sg Δ ∘ sg Θ) ⊆ cl ((sg Γ ∘ sg Δ) ∘ sg Θ). Proof. apply cl_associative. Qed.
+  Local Fact cl_associative_a Γ Δ Θ : sg Γ ⨣ (sg Δ ⨣ sg Θ) ⊆ cl ((sg Γ ⨣ sg Δ) ⨣ sg Θ). Proof. apply cl_associative. Qed.
 
   Local Fact cl_weak Γ : cl (sg eₐ) Γ.
   Proof. intros Σ A H; now apply LBI_weak, H. Qed.
@@ -964,8 +926,8 @@ Section LBI_cut_elim.
 
   Let dwncl A Γ := Γ L⊦[BI_cut_free] A.
   Abbreviation φ  := (λ v, dwncl (BI_form_var µ v)).
-  Let sem_form :=  sem_form  _ cl comp_m unit_m comp_a unit_a µ _ φ.
-  Let sem_bunch := sem_bunch _ cl comp_m unit_m comp_a unit_a _ _ sem_form.
+  Let sem_form :=  sem_form  _ cl (comp BI_mult) eₘ (comp BI_addi) eₐ µ _ φ.
+  Let sem_bunch := sem_bunch _ cl (comp BI_mult) eₘ (comp BI_addi) eₐ _ _ sem_form.
 
   Local Fact dwncl_closed A : cl (dwncl A) ⊆ dwncl A.
   Proof. intros ? H; apply (H (BI_ctx_hole _ _)); simpl; auto. Qed.
@@ -975,7 +937,7 @@ Section LBI_cut_elim.
                cl_neutral_2_a cl_neutral_2_m
                cl_associative_a cl_associative_m
                cl_commute_a cl_commute_m 
-               cl_stable_a_l cl_stable_m_l
+               cl_stable_a_r cl_stable_m_r
                cl_cntr cl_weak 
                dwncl_closed : core.
 
@@ -989,76 +951,67 @@ Section LBI_cut_elim.
 
   Hint Resolve sem_bunch_is_closed : core.
 
+  Local Fact cl_unit_l k h : cl (sg ø[k]) ⟨BI_form_unit µ prop k h⟩.
+  Proof. intros ? ? ?; auto using LBI_unit_l. Qed.
+
+  Local Fact dwncl_unit_r k h : sg ø[k] ⊆ dwncl (BI_form_unit µ prop k h).
+  Proof. apply sg_inc, LBI_unit_r. Qed. 
+
+  Local Fact cl_conj_l k h A B : cl (sg (⟨A⟩ ⊛[k] ⟨B⟩)) ⟨BI_form_conj k h A B⟩.
+  Proof. intros ? ? H; apply LBI_conj_l, H; auto. Qed.
+
+  Local Fact dwncl_conj_r k h A B :  dwncl A ⊚[k] dwncl B ⊆ dwncl (BI_form_conj k h A B).
+  Proof. intros ? [ ? ? ? ? ? H ]; red in H |- *; now apply LBI_equiv with (1 := H), LBI_conj_r. Qed.
+ 
+  Local Fact cl_impl_l k h A B : (dwncl A -⊚[k] cl (sg ⟨B⟩)) ⟨BI_form_impl k h A B⟩.
+  Proof.
+    intros ? [ G D E H1 H2 H3 ]; red in H3.
+    apply cl_bequiv with (1 := H3).
+    rewrite <- H2.
+    intros ? ? ?; apply LBI_impl_l; auto.
+  Qed.
+
+  Local Fact dwncl_impl_r k h A B : sg ⟨A⟩ -⊚[k] dwncl B ⊆ dwncl (BI_form_impl k h A B).
+  Proof. intros G HG; apply LBI_impl_r, HG; exists ⟨A⟩ G; try red; auto. Qed.
+
+  Local Fact cl_disj_l h A B : cl (sg ⟨A⟩ ∪ sg ⟨B⟩) ⟨BI_form_disj h A B⟩.
+  Proof. intros ? ? H; apply LBI_disj_l; apply H; auto. Qed.
+
+  Local Fact dwncl_disj_r1 h A B : dwncl A ⊆ dwncl (BI_form_disj h A B).
+  Proof. intros ? ?; apply LBI_disj_r1; auto. Qed.
+
+  Local Fact dwncl_disj_r2 h A B : dwncl B ⊆ dwncl (BI_form_disj h A B).
+  Proof. intros ? ?; apply LBI_disj_r2; auto. Qed.
+
+
   (** This is the main insight of Okada's lemma: instead
       of proving sem_form A = dwncl A as in eg the Lindenbaum
       construction, we show a weaker form, and this weaker form
       does NOT require cut for its proof *)
+      
+  Hint Resolve composes_monotone : core.
 
   Local Lemma sem_form_Okada A :
       sem_form A ⟨A⟩
     ∧ sem_form A ⊆ dwncl A.
   Proof.
     induction A as [ 
-                   | [] Hµ 
-                   | [] Hµ A [IHA1 IHA2] B [IHB1 IHB2] 
-                   | [] Hµ A [IHA1 IHA2] B [IHB1 IHB2] 
+                   | k Hµ 
+                   | k Hµ A [IHA1 IHA2] B [IHB1 IHB2] 
+                   | k Hµ A [IHA1 IHA2] B [IHB1 IHB2] 
                    | Hµ 
-                   | Hµ A [IHA1 IHA2] B [IHB1 IHB2]  ]; simpl; split; auto.
+                   | Hµ A [IHA1 IHA2] B [IHB1 IHB2]  ]; simpl; split; trivial.
     + apply LBI_axiom.
-    + intros ? ? ?; apply LBI_unit_l; auto.
-    + apply cl_closed; eauto.
-      intros ? <-; red.
-      apply LBI_unit_r.
-    + apply cl_closed; eauto.
-      intros ? <-; red.
-      apply LBI_unit_r.
-    + intros Σ C HC.
-      apply LBI_conj_l, HC.
-      exists ⟨A⟩ ⟨B⟩; red; auto.
-    + apply cl_closed; eauto.
-      intros _ [ G D K ? ? E ]; simpl.
-      apply LBI_equiv with (1 := E).
-      apply LBI_conj_r.
-      * now apply IHA2.
-      * now apply IHB2.
-    + intros Σ C HC.
-      apply LBI_conj_l, HC.
-      exists ⟨A⟩ ⟨B⟩; red; auto.
-    + apply cl_closed; eauto.
-      intros _ [ G D K ? ? E ]; simpl.
-      apply LBI_equiv with (1 := E).
-      apply LBI_conj_r.
-      * now apply IHA2.
-      * now apply IHB2.
-    + apply magicwand_monotone with (A' := dwncl A) (B := cl (sg ⟨B⟩)); auto.
-      * apply cl_closed; eauto; intros ? <-; auto.
-      * intros Γ [? G D <- HG HD]; red in HG, HD.
-        apply cl_bequiv with (1 := HD),
-              cl_bequiv with (1 := BI_bequiv_comm _ _ _).
-        intros ? ? ?; apply LBI_impl_l; auto.
-    + eapply inc_trans.
-      1:{ apply magicwand_monotone with (A := sg ⟨A⟩) (B' := dwncl B); auto.
-          intros ? <-; auto. }
-      intros G HG; red in HG |- *.
-      apply LBI_impl_r, HG.
-      exists G ⟨A⟩; try red; auto.
-    + apply magicwand_monotone with (A' := dwncl A) (B := cl (sg ⟨B⟩)); auto.
-      * apply cl_closed; eauto; intros ? <-; auto.
-      * intros Γ [? G D <- HG HD]; red in HG, HD.
-        apply cl_bequiv with (1 := HD),
-              cl_bequiv with (1 := BI_bequiv_comm _ _ _).
-        intros ? ? ?; apply LBI_impl_l; auto.
-    + eapply inc_trans.
-      1:{ apply magicwand_monotone with (A := sg ⟨A⟩) (B' := dwncl B); auto.
-          intros ? <-; auto. }
-      intros G HG; red in HG |- *.
-      apply LBI_impl_r, HG.
-      exists G ⟨A⟩; try red; auto.
+    + destruct k; apply cl_unit_l.
+    + destruct k; apply cl_closed; eauto using dwncl_unit_r.
+    + destruct k; apply cl_monotone with (2 := cl_conj_l _ _ _ _), sg_inc; econstructor; eauto; red; auto.
+    + destruct k; apply cl_closed; eauto; apply inc_trans with (2 := dwncl_conj_r _ _ _ _); eauto.
+    + destruct k; apply magicwand_monotone with (3 := cl_impl_l _ _ _ _); auto; apply cl_closed; eauto; now apply sg_inc.
+    + destruct k; apply inc_trans with (2 := dwncl_impl_r _ _ _ _); apply magicwand_monotone; auto; now apply sg_inc.
     + intros ? ? ?; apply LBI_bot_l.
     + apply cl_closed; now eauto.
-    + intros Σ C HC; apply LBI_disj_l; apply HC; tauto.
-    + apply cl_closed; eauto.
-      intros ? []; [ apply LBI_disj_r1, IHA2 | apply LBI_disj_r2, IHB2 ]; auto.
+    + apply cl_monotone with (2 := cl_disj_l _ _ _); intros ? [<- | <-]; auto.
+    + apply cl_closed; eauto; intros ? []; [ apply dwncl_disj_r1 | apply dwncl_disj_r2 ]; auto.
   Qed.
 
   Local Corollary sem_bunch_Okada Γ : sem_bunch Γ Γ.

@@ -170,7 +170,7 @@ Section Logic_Bunched_Implications.
 
     | LBI_impl_r k (hk : µ (BI_impl k) = true) Γ A B :
 
-                                 Γ ⊛[k] ⟨A⟩ ⊦ B
+                                  ⟨A⟩ ⊛[k] Γ ⊦ B
                                (*--------------*)
                           →       Γ ⊦ A-⊙[hk]B
 
@@ -286,11 +286,11 @@ Section Hilbert_Calculus.
 
                  Φ ⊦ A⇒(B-∗C)
           →    (*------------*)
-                 Φ ⊦ (A∗B)⇒C
+                 Φ ⊦ (B∗A)⇒C
 
     | HBI_wand_2 A B C :
 
-                 Φ ⊦ (A∗B)⇒C
+                 Φ ⊦ (B∗A)⇒C
           →    (*------------*)
                  Φ ⊦ A⇒(B-∗C)
 

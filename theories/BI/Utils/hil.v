@@ -202,18 +202,18 @@ Section IL.
     apply HIL_imp_elim with A B; eauto.
   Qed.
 
-  Fact HIL_imp_adj_1 A B C : I⊦ (A⇒B⇒C)⇒(A⩑B⇒C).
+  Fact HIL_imp_adj_1 A B C : I⊦ (A⇒B⇒C)⇒(B⩑A⇒C).
   Proof.
     do 2 (apply HIL_imp_intro; eauto).
-    apply HIL_conj_elim with A B; eauto.
+    apply HIL_conj_elim with B A; eauto.
     apply HIL_imp_elim with A (B⇒C); eauto.
     apply HIL_imp_elim with B C; eauto; firstorder.
   Qed.
 
-  Fact HIL_imp_adj_2 A B C : I⊦ (A⩑B⇒C)⇒(A⇒B⇒C).
+  Fact HIL_imp_adj_2 A B C : I⊦ (B⩑A⇒C)⇒(A⇒B⇒C).
   Proof.
     do 3 (apply HIL_imp_intro; eauto).
-    apply HIL_imp_elim with (A⩑B) C; eauto.
+    apply HIL_imp_elim with (B⩑A) C; eauto.
     apply HIL_conj_intro; eauto.
   Qed.
 

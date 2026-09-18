@@ -280,7 +280,7 @@ End LBI_map_conservative.
 
 Check LBI_cut_free_map_conservative.
 
-Require Import Arith Lia.
+From Stdlib Require Import Arith Lia.
 
 Section weight.
 
