@@ -381,55 +381,50 @@ Section LBI_full_HBI.
                      ].
       + destruct H as [ A B | A B C | A B | A B | A B | A B | A B | A B C | A | ]; auto.
         * apply LBI_impl_r, LBI_neut_r, LBI_impl_r; rule LBI_weak at [lft].
-        * apply LBI_impl_r. apply LBI_equiv with (1 := BI_bequiv_comm _ _ _).
-          apply LBI_equiv with (1 := BI_bequiv_sym (BI_bequiv_neut _ _)).
-          do 2 apply LBI_impl_r.
-          rule LBI_cntr at [rt].
+        * apply LBI_impl_r, LBI_neut_r, LBI_impl_r, LBI_impl_r.
+          rule LBI_cntr at [lft].
           apply LBI_equiv with ((⟨A⟩ ⊛ₐ ⟨A⇒B⟩) ⊛ₐ (⟨A⟩ ⊛ₐ ⟨A⇒B⇒C⟩)).
-          - apply BI_bequiv_trans with (1 := BI_bequiv_comm _ _ _).
-            apply BI_bequiv_trans with (1 := BI_bequiv_assoc _ _ _ _).
-            apply BI_bequiv_trans with (1 := BI_bequiv_comm _ _ _).
-            apply BI_bequiv_trans with (1 := BI_bequiv_assoc _ _ _ _).
-            apply BI_bequiv_trans with (2 :=  (BI_bequiv_assoc _ _ _ _)).
+          - do 2 apply BI_bequiv_trans with (1 := BI_bequiv_assoc _ _ _ _),
+                       BI_bequiv_sym.
             apply BI_bequiv_congr.
-            apply BI_bequiv_trans with (1 := BI_bequiv_comm _ _ _).
-            apply BI_bequiv_trans with (1 := BI_bequiv_sym (BI_bequiv_assoc _ _ _ _)); eauto.
+            do 2 apply BI_bequiv_trans with (1 := BI_bequiv_sym (BI_bequiv_assoc _ _ _ _)),
+                       BI_bequiv_sym.
+            do 2 apply BI_bequiv_trans with (1 := BI_bequiv_comm _ _ _), BI_bequiv_sym.
+            apply BI_bequiv_congr; auto.
           - rule LBI_impl_l at [lft]; rule LBI_impl_l at [rt].
-        * apply LBI_impl_r, LBI_neut_l.
+        * apply LBI_impl_r, LBI_neut_r.
           rule LBI_conj_l at []; rule LBI_weak at [rt].
-        * apply LBI_impl_r, LBI_neut_l.
+        * apply LBI_impl_r, LBI_neut_r.
           rule LBI_conj_l at []; rule LBI_weak at [lft].
-        * apply LBI_impl_r, LBI_neut_l, LBI_impl_r, LBI_impl_r.
-          rule LBI_disj_l at [rt].
-          - rule LBI_weak at [lft;rt].
-            apply LBI_equiv with (⟨A⟩ ⊛ₐ ⟨A⇒C⟩); auto.
-            apply BI_bequiv_trans with (2 := BI_bequiv_comm _ _ _), BI_bequiv_congr.
-            apply BI_bequiv_trans with (2 := BI_bequiv_comm _ _ _), BI_bequiv_sym, BI_bequiv_neut.
-          - apply LBI_equiv with (1 := BI_bequiv_sym (BI_bequiv_assoc _ _ _ _)).
-            rule LBI_weak at [lft]; eauto.
-        * apply LBI_impl_r, LBI_neut_l.
+        * apply LBI_impl_r, LBI_neut_r, LBI_impl_r.
+          apply LBI_equiv with (1 := BI_bequiv_comm _ _ _); auto.
+        * apply LBI_impl_r, LBI_neut_r, LBI_impl_r, LBI_impl_r.
+          rule LBI_disj_l at [lft].
+          - rule LBI_weak at [rt;lft]; apply LBI_equiv with (⟨A⟩ ⊛ₐ ⟨A⇒C⟩); auto.
+          - rule LBI_weak at [rt;rt]; apply LBI_equiv with (⟨B⟩ ⊛ₐ ⟨B⇒C⟩); eauto.
+        * apply LBI_impl_r, LBI_neut_r.
           rule LBI_bot_l at [].
       + destruct H as [ A | A | A B | A B C ].
-        * apply LBI_impl_r, LBI_neut_l.
+        * apply LBI_impl_r, LBI_neut_r.
           apply LBI_equiv with (1 := BI_bequiv_neut BI_mult _); auto. 
-        * apply LBI_impl_r, LBI_neut_l.
+        * apply LBI_impl_r, LBI_neut_r.
           rule LBI_conj_l at [].
           rule LBI_unit_l at [lft].
-        * apply LBI_impl_r, LBI_neut_l.
+        * apply LBI_impl_r, LBI_neut_r.
           rule LBI_conj_l at []; eauto.
-        * apply LBI_impl_r, LBI_neut_l.
+        * apply LBI_impl_r, LBI_neut_r.
           rule LBI_conj_l at [].
           rule LBI_conj_l at [rt]; eauto.
       + apply LBI_wc_impl_inv' in IH2; auto.
         cut at [].
       + apply LBI_wc_impl_inv' in IH1, IH2; trivial.
-        apply LBI_impl_r, LBI_equiv with (1 := BI_bequiv_sym (BI_bequiv_neut _ _)).
+        apply LBI_impl_r, LBI_neut_r. 
         rule LBI_conj_l at [].
       + apply LBI_wc_impl_inv', LBI_wc_impl_inv in IH; trivial.
-        apply LBI_impl_r, LBI_equiv with (1 := BI_bequiv_sym (BI_bequiv_neut _ _)).
+        apply LBI_impl_r, LBI_neut_r.
         rule LBI_conj_l at []; eauto.
       + apply LBI_wc_impl_inv' in IH; trivial.
-        apply LBI_impl_r, LBI_equiv with (1 := BI_bequiv_sym (BI_bequiv_neut _ _)).
+        apply LBI_impl_r, LBI_neut_r.
         apply LBI_impl_r.
         cut at [].
     Qed.

@@ -78,7 +78,7 @@ Section pseudo_exponential.
       restricted to the (-∗,⇒,⩑,1) cut-free fragment of LBI. *)
 
   Hint Constructors LBI_provable BI_bunch_equiv : core.
-  Hint Resolve LBI_neut_l : core.
+  Hint Resolve LBI_neut_l LBI_neut_r : core.
 
   (* Our encoding of ⊤ as 1⇒1 is correct *)
   Local Fact LBI_top_weak Γ : Γ ⊦ ⊤.
@@ -134,7 +134,12 @@ Section pseudo_exponential.
     → (*---------------------*)
          Γ ⊛ₐ ⟨(φ-∗γ)⇒γ⟩ ⊦ γ.
 
-  Proof. intro; apply LBI_impl_root; auto. Qed.
+  Proof.
+    intros H. 
+    apply LBI_impl_root; auto. 
+    apply LBI_impl_r.
+    revert H; apply LBI_equiv; auto.
+  Qed.
 
   Hint Resolve LBI_top_weak : core.
 
@@ -213,7 +218,12 @@ Section pseudo_exponential.
     → (*----------------------*)
          Γ ⊛ₘ ⟨(φ-∗ψ)-∗γ⟩ ⊦ γ.
 
-  Proof. intros; apply LBI_impl_root; auto. Qed.
+  Proof. 
+    intros H.
+    apply LBI_impl_root; auto.
+    apply LBI_impl_r.
+    revert H; apply LBI_equiv; auto.
+  Qed.
 
   Local Fact LBI_DEC Γ φ ψ γ :
 
@@ -254,6 +264,7 @@ Section pseudo_exponential.
     + intros H.
       apply LBI_impl_r, IHl.
       revert H; apply LBI_equiv; auto.
+      apply BI_bequiv_trans with (1 := BI_bequiv_sym (BI_bequiv_assoc _ _ _ _)); eauto.
   Qed.
 
   (** We finish with the study of the TPS semantics 
@@ -397,7 +408,7 @@ Section ACM2_to_BI.
     → øₐ ⊦ acm2_to_BI x y p.
   Proof using HΣl.
     intros H.
-    apply LBI_impl_r, LBI_neut_l.
+    apply LBI_impl_r, LBI_neut_r.
     rule LBI_unit_l at [].
     apply LBI_mult_wand_intro, LBI_neut_l.
     revert H.

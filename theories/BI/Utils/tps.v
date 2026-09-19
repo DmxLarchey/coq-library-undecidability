@@ -172,9 +172,8 @@ Section TPS.
       + intros (a & b & -> & []); exists a, b; repeat split; auto.
         * now apply IH1.
         * now apply IH2.
-      + intros (a & b & -> & Ha%IH & Hb%Ha).
-        now rewrite comm.
-      + intros Hx y Hy; rewrite comm; apply IH; red; eauto.
+      + red; intros (b & a & -> & Hb & Ha%IH); now apply Ha.
+      + intros Hx y H; rewrite comm; apply IH; red; eauto.
     Qed.
 
   End HBI.
