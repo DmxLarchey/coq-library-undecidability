@@ -396,8 +396,10 @@ Section ill_cfp_dec.
 
   Local Fact ill_list_form_eq_dec (l m : list (ill_form prop)) : { l = m } + { l ≠ m }.
   Proof using prop_eq_dec. apply list_eq_dec; auto. Qed.
+  
+  (** We split the system into individual rules for a modular treatment *)
 
-  Let stm := (list (ill_form prop) * ill_form prop)%type. 
+  Let stm := (list (ill_form prop) * ill_form prop)%type.
 
   Inductive ill_rule_id : list stm → stm → Prop :=
     | ill_rid_intro A : ill_rule_id [] ([A],A).
@@ -423,8 +425,6 @@ Section ill_cfp_dec.
   Inductive ill_rule_with_r : list stm → stm → Prop := 
     | ill_rwith_r_intro Γ A B : ill_rule_with_r [(Γ,A);(Γ,B)] (Γ,A&B).
 
- (* Let ill_rules := [ill_rule_id;ill_rule_times_l;ill_rule_times_r;ill_rule_limp_l;ill_rule_limp_r;ill_rule_with_l1;ill_rule_with_l2;ill_rule_with_r]. *)
-  
   Let rule_map n := 
     match n with
     | 0 => ill_rule_id
@@ -453,162 +453,186 @@ Section ill_cfp_dec.
            | H: Forall _ [] |- _ => clear H
            | H: Forall _ (_::_) |- _ => apply Forall_cons_iff in H as [ ? H ]
            end.
+           
+  Section equivalence.
 
-  Hint Constructors ill_cut_free_perm : core.
+    Hint Constructors ill_cut_free_perm : core.
 
-  Notation "l ⊢ₚ x" := (@ill_cut_free_perm prop l x).
+    Notation "l ⊢ₚ x" := (@ill_cut_free_perm prop l x).
+
+    Local Lemma ill_cfp_iff_rules Γ A : Γ ⊢ₚ A ↔ provable instances (Γ,A).
+    Proof.
+      split.
+      + induction 1.
+        * solve with rule 0.
+        * solve with rule 1.
+        * solve with rule 2.
+        * solve with rule 3.
+        * solve with rule 4.
+        * solve with rule 5.
+        * solve with rule 6.
+        * solve with rule 7.
+      + change A with (snd (Γ,A)) at 2.
+        change Γ with (fst (Γ,A)) at 2.
+        generalize (Γ,A).
+        induction 1 as [ ? ? (n & Hn & _) ].
+        do 7 (try destruct n as [|n]);
+        destruct Hn; simpl; split Forall; eauto.
+    Qed.
+    
+  End equivalence.
   
-  (* Automation helps a lot ... *)
-  Local Lemma ill_cfp_iff_rules Γ A : Γ ⊢ₚ A ↔ provable instances (Γ,A).
-  Proof.
-    split.
-    + induction 1.
-      * solve with rule 0.
-      * solve with rule 1.
-      * solve with rule 2.
-      * solve with rule 3.
-      * solve with rule 4.
-      * solve with rule 5.
-      * solve with rule 6.
-      * solve with rule 7.
-    + change A with (snd (Γ,A)) at 2.
-      change Γ with (fst (Γ,A)) at 2.
-      generalize (Γ,A).
-      induction 1 as [ ? ? (n & Hn & _) ].
-      do 7 (try destruct n as [|n]);
-      destruct Hn; simpl; split Forall; eauto.
-  Qed.
-
-  Local Fixpoint ill_form_weight (A : ill_form prop) :=
-    match A with
-    | ill_cst _ _ => 1
-    | ill_var _ => 1
-    | ill_bin _ A B => 1 + ill_form_weight A + ill_form_weight B
-    end.
-
-  Local Definition ill_list_weight Γ := fold_right (fun x y => ill_form_weight x+y) 0 Γ.
-
-  Local Fact ill_list_weight_perm Γ Δ : Γ ~ₚ Δ → ill_list_weight Γ = ill_list_weight Δ.
-  Proof. induction 1; simpl; lia. Qed.
-
-  Local Fact ill_list_weight_app Γ Δ : ill_list_weight (Γ++Δ) = ill_list_weight Γ + ill_list_weight Δ.
-  Proof. induction Γ; simpl; lia. Qed.
-
-  Local Definition ill_seq_weight '(Γ,A) := ill_list_weight Γ + ill_form_weight A.
+  Section well_founded.
   
-  Hint Resolve fin_t_cst_left fin_t_eq ill_list_form_eq_dec : core.
-  
-  Local Fact fin_t_ill_rule_id s : fin_t (λ l, ill_rule_id l s).
-  Proof using prop_eq_dec.
-    destruct s as (Γ,A).
-    apply fin_t_equiv with (λ l, Γ = [A] /\ l = []).
-    + intros ?; split.
-      * intros []; subst; constructor.
-      * now inversion 1.
-    + apply fin_t_cst_left; auto.
-  Qed.
+    (** We show rule implications is well-founded *)
 
-  Hint Resolve fin_t_empty : core.
+    Let Fixpoint ill_form_weight (A : ill_form prop) :=
+      match A with
+      | ill_cst _ _ => 1
+      | ill_var _ => 1
+      | ill_bin _ A B => 1 + ill_form_weight A + ill_form_weight B
+      end.
 
-  Local Fact fin_t_ill_rule_times_l s : fin_t (λ l, ill_rule_times_l l s).
-  Proof using prop_eq_dec.
-    destruct s as (Σ,C).
-    apply fin_t_equiv with (P := λ l, exists D Γ, Σ ~ₚ D::Γ /\ match D with A⊗B => l = [(A::B::Γ,C)] | _ => False end).
-    + intros h; split.
-      * intros ([ | | [] ] & ? & []); now subst.
-      * inversion 1; subst; do 2 eexists; split; simpl; eauto; now simpl.  
-    + apply fin_t_perm_head.
-      intros [ | | [] ] Γ E; simpl; auto.
-  Qed.
+    Let ill_list_weight Γ := fold_right (fun x y => ill_form_weight x+y) 0 Γ.
 
-  Local Fact fin_t_ill_rule_times_r s : fin_t (λ l, ill_rule_times_r l s).
-  Proof using prop_eq_dec.
-    destruct s as (Σ,C).
-    apply fin_t_equiv with (P := λ l, match C with A⊗B => exists Γ Δ, Σ ~ₚ Γ++Δ /\ l = [(Γ,A);(Δ,B)] | _ => False end).
-    + intros h; split.
-      * destruct C as [ | | [] ]; simpl; try easy.
-        intros (? & ? & []); now subst.
-      * inversion 1; subst; eauto.
-    + destruct C as [ | | [] ]; simpl; auto.
-      apply fin_t_perm_split; auto.
-  Qed.
+    Local Fact ill_list_weight_perm Γ Δ : Γ ~ₚ Δ → ill_list_weight Γ = ill_list_weight Δ.
+    Proof. induction 1; simpl; lia. Qed.
 
-  Local Fact fin_t_ill_rule_limp_l s : fin_t (λ l, ill_rule_limp_l l s).
-  Proof using prop_eq_dec.
-    destruct s as (Σ,C).
-    apply fin_t_equiv with (P := λ l, exists D Γ Δ, Σ ~ₚ D::Γ++Δ /\ match D with A⊸B => l = [(Γ,A);(B::Δ,C)] | _ => False end).
-    + intros h; split.
-      * intros ([ | | [] ] & ? & ? & []); now subst.
-      * inversion 1; subst; do 3 eexists; split; simpl; eauto; now simpl.  
-    + apply fin_t_perm_head_split.
-      intros [ | | [] ] Γ E; simpl; auto.
-  Qed.
-  
-  Local Fact fin_t_ill_rule_limp_r s : fin_t (λ l, ill_rule_limp_r l s).
-  Proof using prop_eq_dec.
-    destruct s as (Σ,C).
-    apply fin_t_equiv with (P := λ l, match C with A⊸B => l = [(A::Σ,B)] | _ => False end).
-    + intros h; split.
-      * destruct C as [ | | [] ]; simpl; intros; now subst.
-      * inversion 1; subst; eauto.
-    + destruct C as [ | | [] ]; simpl; auto.
-  Qed.
-  
-  Local Fact fin_t_ill_rule_with_l1 s : fin_t (λ l, ill_rule_with_l1 l s).
-  Proof using prop_eq_dec.
-    destruct s as (Σ,C).
-    apply fin_t_equiv with (P := λ l, exists D Γ, Σ ~ₚ D::Γ /\ match D with A&B => l = [(A::Γ,C)] | _ => False end).
-    + intros h; split.
-      * intros ([ | | [] ] & ? & []); try easy; subst; econstructor; eauto.
-      * inversion 1; subst; do 2 eexists; split; simpl; eauto; now simpl.  
-    + apply fin_t_perm_head.
-      intros [ | | [] ] Γ E; simpl; auto.
-  Qed.
-  
-  Local Fact fin_t_ill_rule_with_l2 s : fin_t (λ l, ill_rule_with_l2 l s).
-  Proof using prop_eq_dec.
-    destruct s as (Σ,C).
-    apply fin_t_equiv with (P := λ l, exists D Γ, Σ ~ₚ D::Γ /\ match D with A&B => l = [(B::Γ,C)] | _ => False end).
-    + intros h; split.
-      * intros ([ | | [] ] & ? & []); try easy; subst; econstructor; eauto.
-      * inversion 1; subst; do 2 eexists; split; simpl; eauto; now simpl.  
-    + apply fin_t_perm_head.
-      intros [ | | [] ] Γ E; simpl; auto.
-  Qed.
-  
-  Local Fact fin_t_ill_rule_with_r s : fin_t (λ l, ill_rule_with_r l s).
-  Proof using prop_eq_dec.
-    destruct s as (Σ,C).
-    apply fin_t_equiv with (P := λ l, match C with A&B => l = [(Σ,A);(Σ,B)] | _ => False end).
-    + intros h; split.
-      * destruct C as [ | | [] ]; simpl; intros; now subst.
-      * inversion 1; subst; eauto.
-    + destruct C as [ | | [] ]; simpl; auto.
-  Qed.
+    Local Fact ill_list_weight_app Γ Δ : ill_list_weight (Γ++Δ) = ill_list_weight Γ + ill_list_weight Δ.
+    Proof. induction Γ; simpl; lia. Qed.
 
-  Hint Resolve fin_t_ill_rule_id
-               fin_t_ill_rule_times_l fin_t_ill_rule_times_r
-               fin_t_ill_rule_limp_l fin_t_ill_rule_limp_r
-               fin_t_ill_rule_with_l1 fin_t_ill_rule_with_l2 fin_t_ill_rule_with_r : core.
+    Let ill_seq_weight '(Γ,A) := ill_list_weight Γ + ill_form_weight A.
 
-  Local Lemma ill_instances_dec : ∀s, { provable instances s } + { ¬ provable instances s }.
-  Proof using prop_eq_dec.
-    apply provable_wf_fin_dec.
-    + intros s; induction on s as IH with measure (ill_seq_weight s).
+    Local Lemma wf_instances : well_founded (λ r s : stm, ∃ h : list stm, instances h s ∧ In r h).
+    Proof.
+      intros s; induction on s as IH with measure (ill_seq_weight s).
       constructor; intros c (h & ((n & Hn & _) & H3)).
       apply IH; clear IH.
       do 7 (try destruct n as [|n]); destruct Hn; simpl in H3;
         split disj eqs H3; simpl.
       all: try match goal with H: _ ~ₚ _ |- _ => apply ill_list_weight_perm in H; simpl in H end; try lia.
       all: try rewrite  ill_list_weight_app in *; try lia.
-    + intros c.
+    Qed.
+    
+  End well_founded.
+  
+  Section finitary.
+
+    (** We show that each individual rule is finitary *)
+
+    Hint Resolve fin_t_cst_left fin_t_eq ill_list_form_eq_dec : core.
+  
+    Local Fact fin_t_ill_rule_id s : fin_t (λ l, ill_rule_id l s).
+    Proof using prop_eq_dec.
+      destruct s as (Γ,A).
+      apply fin_t_equiv with (λ l, Γ = [A] /\ l = []).
+      + intros ?; split.
+        * intros []; subst; constructor.
+        * now inversion 1.
+      + apply fin_t_cst_left; auto.
+    Qed.
+
+    Hint Resolve fin_t_empty : core.
+
+    Local Fact fin_t_ill_rule_times_l s : fin_t (λ l, ill_rule_times_l l s).
+    Proof using prop_eq_dec.
+      destruct s as (Σ,C).
+      apply fin_t_equiv with (P := λ l, exists D Γ, Σ ~ₚ D::Γ /\ match D with A⊗B => l = [(A::B::Γ,C)] | _ => False end).
+      + intros h; split.
+        * intros ([ | | [] ] & ? & []); now subst.
+        * inversion 1; subst; do 2 eexists; split; simpl; eauto; now simpl.  
+      + apply fin_t_perm_head.
+        intros [ | | [] ] Γ E; simpl; auto.
+    Qed.
+
+    Local Fact fin_t_ill_rule_times_r s : fin_t (λ l, ill_rule_times_r l s).
+    Proof using prop_eq_dec.
+      destruct s as (Σ,C).
+      apply fin_t_equiv with (P := λ l, match C with A⊗B => exists Γ Δ, Σ ~ₚ Γ++Δ /\ l = [(Γ,A);(Δ,B)] | _ => False end).
+      + intros h; split.
+        * destruct C as [ | | [] ]; simpl; try easy.
+          intros (? & ? & []); now subst.
+        * inversion 1; subst; eauto.
+      + destruct C as [ | | [] ]; simpl; auto.
+        apply fin_t_perm_split; auto.
+    Qed.
+
+    Local Fact fin_t_ill_rule_limp_l s : fin_t (λ l, ill_rule_limp_l l s).
+    Proof using prop_eq_dec.
+      destruct s as (Σ,C).
+      apply fin_t_equiv with (P := λ l, exists D Γ Δ, Σ ~ₚ D::Γ++Δ /\ match D with A⊸B => l = [(Γ,A);(B::Δ,C)] | _ => False end).
+      + intros h; split.
+        * intros ([ | | [] ] & ? & ? & []); now subst.
+        * inversion 1; subst; do 3 eexists; split; simpl; eauto; now simpl.  
+      + apply fin_t_perm_head_split.
+        intros [ | | [] ] Γ E; simpl; auto.
+    Qed.
+  
+    Local Fact fin_t_ill_rule_limp_r s : fin_t (λ l, ill_rule_limp_r l s).
+    Proof using prop_eq_dec.
+      destruct s as (Σ,C).
+      apply fin_t_equiv with (P := λ l, match C with A⊸B => l = [(A::Σ,B)] | _ => False end).
+      + intros h; split.
+        * destruct C as [ | | [] ]; simpl; intros; now subst.
+        * inversion 1; subst; eauto.
+      + destruct C as [ | | [] ]; simpl; auto.
+    Qed.
+
+    Local Fact fin_t_ill_rule_with_l1 s : fin_t (λ l, ill_rule_with_l1 l s).
+    Proof using prop_eq_dec.
+      destruct s as (Σ,C).
+      apply fin_t_equiv with (P := λ l, exists D Γ, Σ ~ₚ D::Γ /\ match D with A&B => l = [(A::Γ,C)] | _ => False end).
+      + intros h; split.
+        * intros ([ | | [] ] & ? & []); try easy; subst; econstructor; eauto.
+        * inversion 1; subst; do 2 eexists; split; simpl; eauto; now simpl.  
+      + apply fin_t_perm_head.
+        intros [ | | [] ] Γ E; simpl; auto.
+    Qed.
+
+    Local Fact fin_t_ill_rule_with_l2 s : fin_t (λ l, ill_rule_with_l2 l s).
+    Proof using prop_eq_dec.
+      destruct s as (Σ,C).
+      apply fin_t_equiv with (P := λ l, exists D Γ, Σ ~ₚ D::Γ /\ match D with A&B => l = [(B::Γ,C)] | _ => False end).
+      + intros h; split.
+        * intros ([ | | [] ] & ? & []); try easy; subst; econstructor; eauto.
+        * inversion 1; subst; do 2 eexists; split; simpl; eauto; now simpl.  
+      + apply fin_t_perm_head.
+        intros [ | | [] ] Γ E; simpl; auto.
+    Qed.
+
+    Local Fact fin_t_ill_rule_with_r s : fin_t (λ l, ill_rule_with_r l s).
+    Proof using prop_eq_dec.
+      destruct s as (Σ,C).
+      apply fin_t_equiv with (P := λ l, match C with A&B => l = [(Σ,A);(Σ,B)] | _ => False end).
+      + intros h; split.
+        * destruct C as [ | | [] ]; simpl; intros; now subst.
+        * inversion 1; subst; eauto.
+      + destruct C as [ | | [] ]; simpl; auto.
+    Qed.
+
+    Hint Resolve fin_t_ill_rule_id
+                 fin_t_ill_rule_times_l fin_t_ill_rule_times_r
+                 fin_t_ill_rule_limp_l fin_t_ill_rule_limp_r
+                 fin_t_ill_rule_with_l1 fin_t_ill_rule_with_l2 fin_t_ill_rule_with_r : core.
+
+    Local Lemma fin_t_instances c : fin_t (λ h, instances h c).
+    Proof using prop_eq_dec.
       apply fin_t_idx_union.
       intros n _; do 7 (try destruct n as [|n]); simpl; auto.
+    Qed.
+    
+  End finitary.
+
+  Local Theorem ill_instances_dec : ∀s, { provable instances s } + { ¬ provable instances s }.
+  Proof using prop_eq_dec.
+    apply provable_wf_fin_dec.
+    + apply wf_instances.
+    + apply fin_t_instances.
   Qed.
 
   Notation "l ⊢ x" := (@ill_cut_free prop l x).
 
-  Theorem iff_cut_free_decidable Γ A : { Γ ⊢ A } + { ¬ Γ ⊢ A }.
+  Corollary iff_cut_free_decidable Γ A : { Γ ⊢ A } + { ¬ Γ ⊢ A }.
   Proof using prop_eq_dec.
     destruct (ill_instances_dec (Γ,A)) as [ H | H ]; [ left | right ];
       rewrite <- ill_cf_iff_cfp, ill_cfp_iff_rules; trivial.
