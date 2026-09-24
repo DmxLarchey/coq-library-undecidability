@@ -10,7 +10,7 @@
 From Stdlib Require Import List Permutation Arith Lia Utf8.
 
 From Undecidability.BI.Utils
-  Require Import decidable.
+  Require Import decidable rel_phase_sem.
   
 From Undecidability.Shared
   Require Import measure_ind fin_base utils_list.
@@ -21,6 +21,16 @@ From Undecidability.BI
 Set Implicit Arguments.
 
 Import ListNotations.
+
+#[local] Reserved Notation "x ∘ y" (at level 50, no associativity, format "x ∘ y").
+#[local] Reserved Notation "x ⊸ y" (at level 51, right associativity, format "x ⊸ y").
+#[local] Reserved Notation "x ⊛ y "(at level 50, no associativity, format "x ⊛ y").
+
+#[local] Notation "X ⊆ Y" := (∀m, X m → Y m) (at level 70, format "X  ⊆  Y", no associativity).
+#[local] Notation "X ≃ Y" := (X ⊆ Y ∧ Y ⊆ X) (at level 70, format "X  ≃  Y", no associativity).
+#[local] Notation "A '∩' B" := (λ z, A z ∧ B z) (at level 50, format "A ∩ B", left associativity).
+
+#[local] Hint Resolve eq_sg : core. 
 
 #[local] Infix "~ₚ" := (@Permutation _) (at level 70).
 
@@ -58,12 +68,12 @@ Module ILL_notations.
 
 End ILL_notations.
 
-Import ILL_notations.
-
 #[local] Reserved Notation "l '⊢' x" (at level 70, no associativity).
 #[local] Reserved Notation "l '⊢ₚ' x" (at level 70, no associativity).
 
 Section ill_cut_free.
+
+  Import ILL_notations.
 
   Variables (prop : Set).
 
@@ -235,12 +245,16 @@ Check ill_cf_iff_cfp.
 
 Section ill_cfp_dec.
 
+  Import ILL_notations.
+
   Variables (prop : Set)
             (prop_eq_dec : ∀ v w : prop, {v=w} + {v≠w}).
 
   Implicit Types (A B : ill_form prop) (Γ Δ : list (ill_form prop)).
 
-  Fact ill_form_eq_dec A B : {A=B} + {A≠B}.
+  (** Equality of formula, and of lists of those is decidable *)
+
+  Local Fact ill_form_eq_dec A B : {A=B} + {A≠B}.
   Proof using prop_eq_dec. decide equality; auto; decide equality. Qed.
 
   Hint Resolve ill_form_eq_dec : core.
@@ -248,7 +262,7 @@ Section ill_cfp_dec.
   Local Fact ill_list_form_eq_dec Γ Δ : {Γ=Δ} + {Γ≠Δ}.
   Proof using prop_eq_dec. apply list_eq_dec; auto. Qed.
   
-  (** We split the system into individual rules for a modular treatment *)
+  (** We split the system into 8 individual rules for a modular treatment *)
 
   Let stm := (list (ill_form prop) * ill_form prop)%type.
 
@@ -288,6 +302,7 @@ Section ill_cfp_dec.
     | _ => ill_rule_with_r
     end.
 
+  (** This is the system of rules, indexed with a natural number for each 8 rules *)
   Let instances l s := ∃n, rule_map n l s ∧ n < 8.
 
   Tactic Notation "solve" "with" "rule" constr(r) :=
@@ -354,6 +369,7 @@ Section ill_cfp_dec.
 
     Let ill_seq_weight '(Γ,A) := ill_list_weight Γ + ill_form_weight A.
 
+    (* By strong induction on the weight *)
     Local Lemma wf_instances : well_founded (λ r s, ∃h, instances h s ∧ In r h).
     Proof.
       intros s; induction on s as IH with measure (ill_seq_weight s).
@@ -372,8 +388,9 @@ Section ill_cfp_dec.
 
     (** We show that each individual rule is finitary *)
 
-    Hint Resolve fin_t_cst_left fin_t_eq ill_list_form_eq_dec : core.
-  
+    Hint Resolve fin_t_cst_left fin_t_eq fin_t_empty
+                 ill_list_form_eq_dec : core.
+
     Local Fact fin_t_ill_rule_id s : fin_t (λ l, ill_rule_id l s).
     Proof using prop_eq_dec.
       destruct s as (Γ,A).
@@ -383,8 +400,6 @@ Section ill_cfp_dec.
         * now inversion 1.
       + apply fin_t_cst_left; auto.
     Qed.
-
-    Hint Resolve fin_t_empty : core.
 
     Local Fact fin_t_ill_rule_times_l s : fin_t (λ l, ill_rule_times_l l s).
     Proof using prop_eq_dec.
@@ -528,5 +543,157 @@ Section ill_cfp_dec.
 End ill_cfp_dec.
 
 Check iff_cut_free_decidable.
+
+Section ill_rel_sem.
+
+  Variables (M : Type) (cl : (M → Prop) → (M → Prop)).
+
+  Abbreviation closed := (λ x, cl x ⊆ x).
+
+  Hypothesis cl_increase   : ∀A, A ⊆ cl A.
+  Hypothesis cl_monotone   : ∀ A B, A ⊆ B → cl A ⊆ cl B.
+  Hypothesis cl_idempotent : ∀ A, cl (cl A) ⊆ cl A.
+
+  Variables (comp : M → M → M → Prop) (unit : M).
+  
+  Infix "∘" := (composes _ comp).
+  Infix "⊸" := (magicwand _ comp).
+  Abbreviation e := unit.
+
+  Hypothesis cl_stable : ∀ A B, cl A ∘ cl B ⊆ cl (A ∘ B).
+  Hypothesis cl_neutral_1 : ∀x, cl (sg e ∘ sg x) x.
+  Hypothesis cl_neutral_2 : ∀x, sg e ∘ sg x ⊆ cl (sg x).
+  Hypothesis cl_commute : ∀ x y, sg x ∘ sg y ⊆ cl (sg y ∘ sg x).
+  Hypothesis cl_associative : ∀ x y z, sg x ∘ (sg y ∘ sg z) ⊆ cl ((sg x ∘ sg y) ∘ sg z).
+
+  Abbreviation top := (λ _, True).
+  Abbreviation bot := (cl (λ _, False)).
+
+  Reserved Notation "⟦ A ⟧ᶠ" (at level 0, format "⟦ A ⟧ᶠ").
+  Reserved Notation "⟦ Θ ⟧ᵇ" (at level 0, format "⟦ Θ ⟧ᵇ").
+
+  Hint Resolve cap_closed : core.
+
+  Variables (prop : Set).
+
+  Section sem_ill_form.
+
+    Variables (φ : prop → M → Prop) (Hφ: ∀v, closed (φ v)).
+
+    Fixpoint sem_ill_form (A : ill_form prop) { struct A } : M → Prop :=
+      match A with
+      | ill_var v             => φ v
+      | ill_cst _ ill_unit    => cl (sg e)
+      | ill_cst _ ill_top     => top
+      | ill_cst _ ill_bot     => bot
+      | ill_bin ill_times A B => cl (⟦A⟧ᶠ ∘ ⟦B⟧ᶠ)
+      | ill_bin ill_with A B  => ⟦A⟧ᶠ ∩ ⟦B⟧ᶠ
+      | ill_bin ill_limp A B  => ⟦A⟧ᶠ ⊸ ⟦B⟧ᶠ
+      end
+    where "⟦ A ⟧ᶠ" := (sem_ill_form A).
+
+    Fact sem_ill_form_closed A : closed ⟦A⟧ᶠ.
+    Proof using cl_idempotent cl_increase cl_monotone cl_stable Hφ.
+      induction A as [ | [] | [] ]; simpl; eauto using closed_magicwand.
+    Qed.
+
+  End sem_ill_form.
+
+  Section sem_ill_list_form.
+
+    Variables (φ : ill_form prop → M → Prop) (Hφ : ∀A, closed (φ A)).
+
+    Definition sem_ill_list_form := fold_right (λ A x, cl (φ A ∘ x)) (cl (sg e)).
+
+    Notation "⟦ Θ ⟧ᵇ" := (sem_ill_list_form Θ).
+
+    Fact sem_ill_list_form_closed Θ : closed ⟦Θ⟧ᵇ.
+    Proof using cl_idempotent cl_monotone Hφ.
+      induction Θ as [ | [] ]; simpl; eauto.
+    Qed.
+
+    Hint Resolve sem_ill_list_form_closed : core.
+    Hint Resolve equiv_refl equiv_sym equiv_trans unit_neutral : core.
+
+    Fact sem_ill_list_form_perm Γ Δ : Γ ~ₚ Δ → ⟦Γ⟧ᵇ ≃ ⟦Δ⟧ᵇ.
+    Proof using cl_associative 
+                cl_commute 
+                cl_idempotent cl_increase cl_monotone
+                cl_neutral_1 cl_neutral_2
+                cl_stable
+                Hφ.
+      induction 1; simpl; eauto using times_congruence.
+      eapply equiv_trans.
+      1: eapply equiv_sym, times_associative; eauto.
+      eapply equiv_trans.
+      2: apply times_associative; eauto.
+      apply times_congruence; auto.
+      apply times_commute; auto.
+    Qed.
+
+    Fact sem_ill_list_form_app Γ Δ : ⟦Γ++Δ⟧ᵇ ≃ cl (⟦Γ⟧ᵇ ∘ ⟦Δ⟧ᵇ).
+    Proof using cl_associative cl_commute
+                cl_idempotent 
+                cl_increase cl_monotone 
+                cl_neutral_1 cl_neutral_2
+                cl_stable
+                Hφ.
+      induction Γ; simpl.
+      + eapply equiv_sym, unit_neutral; auto.
+      + eapply equiv_sym, equiv_trans.
+        1: eapply times_associative; eauto.
+        apply equiv_sym, times_congruence; auto.
+    Qed.
+
+  End sem_ill_list_form.
+
+  Variables (φ : prop → M → Prop) (Hφ : ∀v, closed (φ v)).
+
+  Hint Resolve sem_ill_form_closed : core.
+
+  Theorem ill_sem_soundness Γ A : ill_cut_free Γ A → sem_ill_list_form (sem_ill_form φ) Γ ⊆ sem_ill_form φ A.
+  Proof using cl_idempotent cl_increase cl_monotone
+              cl_commute 
+              cl_idempotent cl_increase cl_monotone
+              cl_neutral_1 cl_neutral_2
+              cl_associative
+              cl_stable
+              Hφ.
+    induction 1.
+    + simpl; apply unit_neutral'; eauto.
+    + apply inc_trans with (2 := IHill_cut_free).
+      apply sem_ill_list_form_perm; auto.
+    + apply inc_trans with (2 := IHill_cut_free); simpl.
+      apply times_associative; eauto.
+    + simpl.
+      eapply inc_trans; [ eapply sem_ill_list_form_app | ]; auto.
+      apply times_monotone; auto.
+    + simpl.
+      apply inc_trans with (2 := IHill_cut_free2); simpl.
+      eapply inc_trans.
+      * eapply times_monotone; [ eauto |apply inc_refl; eauto |].
+        eapply sem_ill_list_form_app; auto.
+      * eapply inc_trans; [ eapply times_associative; eauto | ].
+        apply times_monotone; eauto.
+        eapply inc_trans; [ eapply times_commute; eauto | ].
+        apply cl_closed; auto.
+        apply magicwand_spec, magicwand_monotone; auto.
+    + simpl.
+      apply magicwand_spec.
+      apply inc_trans with (2 := IHill_cut_free); simpl; auto.
+    + simpl.
+      apply inc_trans with (2 := IHill_cut_free); simpl; auto.
+      apply times_monotone; eauto; tauto.
+    + simpl.
+      apply inc_trans with (2 := IHill_cut_free); simpl; auto.
+      apply times_monotone; eauto; tauto.
+    + simpl; split; auto.
+  Qed.
+
+End ill_rel_sem.
+
+
+
+
 
   
