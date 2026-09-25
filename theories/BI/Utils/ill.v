@@ -60,7 +60,7 @@ Module ILL_notations.
 
   Infix "&" := (ill_bin ill_with) (at level 50).
   Infix "⊗" := (ill_bin ill_times) (at level 50).
-  Infix "⊸" := (ill_bin ill_limp) (at level 51, right associativity).
+  Infix "-⊗" := (ill_bin ill_limp) (at level 51, right associativity).
 
   Notation "£" := ill_var.
 
@@ -108,13 +108,13 @@ Section ill_cut_free.
 
            Γ ⊢ A     →   B::Δ ⊢ C
     → (*-----------------------------*)
-             A⊸B::Γ++Δ ⊢ C
+             A-⊗B::Γ++Δ ⊢ C
 
     | ill_cf_limp_r Γ A B :
 
                A::Γ ⊢ B
     → (*-----------------------------*)
-               Γ ⊢ A⊸B
+               Γ ⊢ A-⊗B
 
     | ill_cf_with_l1 Γ A B C :
 
@@ -161,7 +161,7 @@ Section ill_cut_free.
 
     | ill_cfp_limp_l Γ Δ Σ A B C : 
 
-         Σ ~ₚ A⊸B::Γ++Δ → Γ ⊢ₚ A → B::Δ ⊢ₚ C
+         Σ ~ₚ A-⊗B::Γ++Δ → Γ ⊢ₚ A → B::Δ ⊢ₚ C
     → (*-----------------------------*)
              Σ ⊢ₚ C
 
@@ -169,7 +169,7 @@ Section ill_cut_free.
  
                A::Γ ⊢ₚ B
     → (*-----------------------------*)
-               Γ ⊢ₚ A⊸B
+               Γ ⊢ₚ A-⊗B
 
     | ill_cfp_with_l1 Γ Σ A B C :
 
@@ -276,10 +276,10 @@ Section ill_cfp_dec.
     | ill_rtimes_r_intro Γ Δ Σ A B : Σ ~ₚ Γ++Δ → ill_rule_times_r [(Γ,A);(Δ,B)] (Σ,A⊗B).
 
   Inductive ill_rule_limp_l : list stm → stm → Prop :=
-    | ill_rlimp_l_intro Γ Δ Σ A B C :  Σ ~ₚ A⊸B::Γ++Δ → ill_rule_limp_l [(Γ,A);(B::Δ,C)] (Σ,C).
+    | ill_rlimp_l_intro Γ Δ Σ A B C :  Σ ~ₚ A-⊗B::Γ++Δ → ill_rule_limp_l [(Γ,A);(B::Δ,C)] (Σ,C).
 
   Inductive ill_rule_limp_r : list stm → stm → Prop :=
-    | ill_rlimp_r_intro Γ A B : ill_rule_limp_r [(A::Γ,B)] (Γ,A⊸B).
+    | ill_rlimp_r_intro Γ A B : ill_rule_limp_r [(A::Γ,B)] (Γ,A-⊗B).
 
   Inductive ill_rule_with_l1 : list stm → stm → Prop :=
     | ill_rwith_l1_intro Γ Σ A B C : Σ ~ₚ A&B::Γ → ill_rule_with_l1 [(A::Γ,C)] (Σ,C).
@@ -439,8 +439,8 @@ Section ill_cfp_dec.
       apply fin_t_equiv
         with (P := λ l, ∃ D Γ Δ, Σ ~ₚ D::Γ++Δ 
                           ∧ match D with
-                            | A⊸B => l = [(Γ,A);(B::Δ,C)]
-                            | _   => False
+                            | A-⊗B => l = [(Γ,A);(B::Δ,C)]
+                            | _    => False
                             end).
       + split.
         * intros ([ | | [] ] & ? & ? & []); now subst.
@@ -454,8 +454,8 @@ Section ill_cfp_dec.
       destruct s as (Σ,C).
       apply fin_t_equiv
         with (P := λ l, match C with
-                        | A⊸B => l = [(A::Σ,B)]
-                        | _   => False
+                        | A-⊗B => l = [(A::Σ,B)]
+                        | _    => False
                         end).
       + split.
         * destruct C as [ | | [] ]; simpl; intros; now subst.
@@ -692,7 +692,227 @@ Section ill_rel_sem.
 
 End ill_rel_sem.
 
+Section ill_cut_free_completeness.
 
+Section ill_cut_free_completeness.
+
+  Variables (prop : Set).
+
+  Let M := list (ill_form prop).
+
+  Implicit Types (Γ : M) (X Y : M → Prop).
+  
+  Notation "l ⊢ x" := (@ill_cut_free prop l x).
+  
+  Let cl X Γ := ∀ Σ A, (∀Δ, X Δ → Δ++Σ ⊢ A)
+                                → Γ++Σ ⊢ A.
+
+  Local Fact cl_increase X : X ⊆ cl X.
+  Proof. intros Γ HΓ Σ A H; now apply H. Qed.
+
+  Local Fact cl_monotone X Y : X ⊆ Y → cl X ⊆ cl Y.
+  Proof. intros HXY Γ HΓ Σ A H; apply HΓ; intros ? ?%HXY; auto. Qed.
+
+  Local Fact cl_idempotent X : cl (cl X) ⊆ cl X.
+  Proof. intros Γ HΓ Σ A H; apply HΓ; intros D HD; apply HD; auto. Qed.
+  
+  Hint Resolve cl_monotone cl_increase cl_idempotent : core.
+
+  (** The relational bi-monoidal structure *)
+  
+  Let comp (Γ Δ Θ : M) := Γ++Δ ~ₚ Θ.
+
+  Infix "∘" := (composes _ comp).
+  Infix "⊸" := (magicwand _ comp).
+  Abbreviation e := ([] : M).
+  
+  Hint Resolve Permutation_app Permutation_app_comm : core.
+
+  Local Fact cl_perm X Γ Δ : Γ ~ₚ Δ → cl X Γ → cl X Δ.
+  Proof.
+    intros H1 H2 Σ A H3.
+    apply ill_cf_perm with (Γ++Σ); auto.
+  Qed.
+
+  Local Fact cl_stable_left X Y : cl X ∘ Y ⊆ cl (X ∘ Y).
+  Proof.
+    intros _ [ Γ Δ Θ H1 H2 H3 ]; red in H1, H3.
+    apply cl_perm with (1 := H3).
+    intros Σ A HA.
+    rewrite <- app_assoc.
+    apply H1.
+    intros D HD; rewrite app_assoc.
+    apply HA; eexists D _; try red; eauto.
+  Qed.
+
+  Local Fact cl_stable_right X Y : X ∘ cl Y ⊆ cl (X ∘ Y).
+  Proof.
+    intros _ [ Γ Δ Θ H1 H2 H3 ]; red in H2, H3.
+    apply cl_perm with (1 := H3).
+    intros Σ A HA.
+    apply ill_cf_perm with (Δ++(Γ++Σ)).
+    1: rewrite app_assoc; eauto.
+    apply H2.
+    intros D HD.
+    rewrite app_assoc.
+    apply HA; eexists _ D; try red; eauto.
+  Qed.
+
+  Local Hint Resolve cl_stable_left cl_stable_right : core.
+
+  Local Fact cl_stable X Y : cl X ∘ cl Y ⊆ cl (X ∘ Y).
+  Proof. apply cl_stable_lr_imp_stable; eauto. Qed.
+
+  Local Fact cl_sg Γ : cl (sg Γ) Γ.
+  Proof. apply cl_increase; eauto. Qed.
+
+  Hint Resolve cl_sg : core.
+  
+  Hint Constructors Permutation : core.
+
+  Local Fact cl_neutral_1 Γ : cl (sg e ∘ sg Γ) Γ.
+  Proof. intros Σ A H; apply H; exists e Γ; red; auto. Qed.
+
+  Local Fact cl_neutral_2 Γ : sg e ∘ sg Γ ⊆ cl (sg Γ).
+  Proof. intros _ [ ? ? ? <- <- ?]; apply cl_perm with Γ; eauto. Qed.
+
+  Local Fact cl_commute Γ Δ : sg Γ ∘ sg Δ ⊆ cl (sg Δ ∘ sg Γ).
+  Proof.
+    intros _ [ ? ? Θ <- <- H ]; red in H.
+    apply cl_perm with (Δ ++ Γ); eauto.
+    apply cl_increase; eauto.
+    exists Δ Γ; try red; auto.
+  Qed.
+
+  Local Fact cl_associative Γ Δ Θ : sg Γ ∘ (sg Δ ∘ sg Θ) ⊆ cl ((sg Γ ∘ sg Δ) ∘ sg Θ).
+  Proof.
+    intros _ [ _ _ D <- [ _ _ C <- <- H1 ] H2 ].
+    apply cl_perm with ((Γ ++ Δ) ++ Θ); auto.
+    + red in H1, H2; rewrite <- app_assoc; eauto.
+    + apply cl_increase.
+      exists (Γ ++ Δ) Θ; try red; auto.
+      exists Γ Δ; try red; auto.
+  Qed.
+
+  Let dwncl A Γ := Γ ⊢ A.
+  Abbreviation φ := (λ v, dwncl (ill_var v)).
+  Let sem_form :=  sem_ill_form cl comp e φ.
+  Let sem_list := sem_ill_list_form cl comp e sem_form.
+
+  Local Fact dwncl_closed A : cl (dwncl A) ⊆ dwncl A.
+  Proof. intros ? H; rewrite <- app_nil_r; apply (H []); intro; rewrite app_nil_r; auto. Qed.
+
+  Hint Resolve cl_idempotent cl_increase cl_monotone 
+               cl_neutral_1 cl_neutral_2
+               cl_associative cl_commute 
+               cl_stable 
+               dwncl_closed : core.
+
+  Local Fact sem_form_is_closed A : cl (sem_form A) ⊆ sem_form A.
+  Proof. apply sem_ill_form_closed; eauto. Qed.
+
+  Hint Resolve sem_form_is_closed : core.
+
+  Local Fact sem_list_is_closed Γ : cl (sem_list Γ) ⊆ sem_list Γ.
+  Proof. apply sem_ill_list_form_closed; eauto. Qed.
+
+  Hint Resolve sem_list_is_closed : core.
+  
+  (*
+
+  Local Fact cl_unit_l k h : cl (sg e ⟨BI_form_unit µ prop k h⟩.
+  Proof. intros ? ? ?; auto using LBI_unit_l. Qed.
+
+  Local Fact dwncl_unit_r k h : sg ø[k] ⊆ dwncl (BI_form_unit µ prop k h).
+  Proof. apply sg_inc, LBI_unit_r. Qed. 
+  
+  *)
+  
+  Import ILL_notations.
+  
+  Hint Constructors ill_cut_free : core.
+
+  Local Fact cl_times_l A B : cl (sg [A;B]) [A⊗B].
+  Proof. intros ? ? H; apply ill_cf_times_l, (H [_;_]); auto. Qed.
+
+  Local Fact dwncl_conj_r A B :  dwncl A ∘ dwncl B ⊆ dwncl (A⊗B).
+  Proof. intros ? [ ? ? ? ? ? H ]; red in H |- *; eauto. Qed.
+ 
+  Local Fact cl_impl_l A B : (dwncl A ⊸ cl (sg [B])) [A-⊗B].
+  Proof.
+    intros ? [ G D E H1 H2 H3 ]; red in H3.
+    apply cl_perm with (1 := H3).
+    rewrite <- H2.
+    intros ? ? ?.
+    eapply ill_cf_perm with ([A-⊗B]++(G++Σ)).
+    + rewrite app_assoc; auto.
+    + simpl; apply ill_cf_limp_l; auto.
+      apply (H [_]); auto.
+  Qed.
+
+  Local Fact dwncl_impl_r k h A B : sg ⟨A⟩ -⊚[k] dwncl B ⊆ dwncl (BI_form_impl k h A B).
+  Proof. intros G HG; apply LBI_impl_r, HG; exists ⟨A⟩ G; try red; auto. Qed.
+
+  Local Fact cl_disj_l h A B : cl (sg ⟨A⟩ ∪ sg ⟨B⟩) ⟨BI_form_disj h A B⟩.
+  Proof. intros ? ? H; apply LBI_disj_l; apply H; auto. Qed.
+
+  Local Fact dwncl_disj_r1 h A B : dwncl A ⊆ dwncl (BI_form_disj h A B).
+  Proof. intros ? ?; apply LBI_disj_r1; auto. Qed.
+
+  Local Fact dwncl_disj_r2 h A B : dwncl B ⊆ dwncl (BI_form_disj h A B).
+  Proof. intros ? ?; apply LBI_disj_r2; auto. Qed.
+
+
+  (** This is the main insight of Okada's lemma: instead
+      of proving sem_form A = dwncl A as in eg the Lindenbaum
+      construction, we show a weaker form, and this weaker form
+      does NOT require cut for its proof *)
+
+  Hint Resolve composes_monotone : core.
+
+  Local Lemma sem_form_Okada A :
+      sem_form A ⟨A⟩
+    ∧ sem_form A ⊆ dwncl A.
+  Proof.
+    induction A as [ 
+                   | k Hµ 
+                   | k Hµ A [IHA1 IHA2] B [IHB1 IHB2] 
+                   | k Hµ A [IHA1 IHA2] B [IHB1 IHB2] 
+                   | Hµ 
+                   | Hµ A [IHA1 IHA2] B [IHB1 IHB2]  ]; simpl; split; trivial.
+    + apply LBI_axiom.
+    + destruct k; apply cl_unit_l.
+    + destruct k; apply cl_closed; eauto using dwncl_unit_r.
+    + destruct k; apply cl_monotone with (2 := cl_conj_l _ _ _ _), sg_inc; econstructor; eauto; red; auto.
+    + destruct k; apply cl_closed; eauto; apply inc_trans with (2 := dwncl_conj_r _ _ _ _); eauto.
+    + destruct k; apply magicwand_monotone with (3 := cl_impl_l _ _ _ _); auto; apply cl_closed; eauto; now apply sg_inc.
+    + destruct k; apply inc_trans with (2 := dwncl_impl_r _ _ _ _); apply magicwand_monotone; auto; now apply sg_inc.
+    + intros ? ? ?; apply LBI_bot_l.
+    + apply cl_closed; now eauto.
+    + apply cl_monotone with (2 := cl_disj_l _ _ _); intros ? [<- | <-]; auto.
+    + apply cl_closed; eauto; intros ? []; [ apply dwncl_disj_r1 | apply dwncl_disj_r2 ]; auto.
+  Qed.
+
+  Local Corollary sem_bunch_Okada Γ : sem_bunch Γ Γ.
+  Proof.
+    induction Γ as [ | [] | [] ]; simpl; auto using cl_increase.
+    + apply sem_form_Okada.
+    + apply cl_increase; exists Γ1 Γ2; red; auto.
+    + apply cl_increase; exists Γ1 Γ2; red; auto.
+  Qed.
+
+  Theorem LBI_cut_elim c Γ A : Γ L⊦[c] A → Γ L⊦[BI_cut_free] A.
+  Proof.
+    intros HA.
+    cut (sem_bunch Γ ⊆ sem_form A).
+    + intros H; apply sem_form_Okada, H, sem_bunch_Okada.
+    + revert A HA; apply LBI_soundness; auto; eauto.
+  Qed.
+
+End LBI_cut_elim.
+
+
+  
 
 
 
