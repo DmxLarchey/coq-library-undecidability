@@ -423,6 +423,7 @@ BI/Utils/decidable.v
 BI/Utils/ill.v
 BI/Utils/fin_extra.v
 BI/Utils/rel_phase_sem.v
+BI/Utils/lbi_embed_ill.v
 BI/Reductions/ACM2_to_BI.v
 
 MuRec/MuRec.v
