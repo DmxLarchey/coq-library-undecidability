@@ -54,9 +54,9 @@ End syntax.
 
 Module ILL_notations.
 
-  Notation "⟙" := (ill_cst ill_top).
-  Notation "⟘" := (ill_cst ill_bot).
-  Notation "𝟙" := (ill_cst ill_unit).
+  Notation "⟙" := (ill_cst _ ill_top).
+  Notation "⟘" := (ill_cst _ ill_bot).
+  Notation "𝟙" := (ill_cst _ ill_unit).
 
   Infix "&" := (ill_bin ill_with) (at level 50).
   Infix "⊗" := (ill_bin ill_times) (at level 50).
@@ -91,6 +91,27 @@ Section ill_cut_free.
             Γ ~ₚ Δ     →   Γ ⊢ A 
     →  (*-----------------------------*)
                    Δ ⊢ A
+
+    | ill_cf_unit_l Γ C :
+    
+                Γ ⊢ C
+    →     (*--------------*)
+         (* *) 𝟙::Γ ⊢ C
+
+    | ill_cf_unit_r :
+
+        (*--------------*)
+              [] ⊢ 𝟙
+
+    | ill_cf_bot_l Γ C :
+ 
+        (*--------------*)
+       (* *) ⟘::Γ ⊢ C
+
+    | ill_cf_top_r Γ :
+ 
+        (*--------------*)
+              Γ ⊢ ⟙
 
     | ill_cf_times_l Γ A B C :
 
@@ -147,6 +168,28 @@ Section ill_cut_free.
               (*--------------*)
                    [A] ⊢ₚ A
 
+    | ill_cfp_unit_l Γ Σ C :
+    
+          Σ ~ₚ 𝟙::Γ  →  Γ ⊢ₚ C
+    →  (*---------------------*)
+                Σ ⊢ₚ C
+
+    | ill_cfp_unit_r :
+
+         (*--------------*)
+              [] ⊢ₚ 𝟙
+
+    | ill_cfp_bot_l Γ Σ C :
+
+               Σ ~ₚ ⟘::Γ 
+    →  (*---------------------*)
+                Σ ⊢ₚ C
+
+    | ill_cfp_top_r Γ :
+ 
+        (*--------------*)
+              Γ ⊢ₚ ⟙
+
     | ill_cfp_times_l Γ Σ A B C :
 
           Σ ~ₚ A⊗B::Γ  →  A::B::Γ ⊢ₚ C 
@@ -198,6 +241,10 @@ Section ill_cut_free.
   Proof.
     induction 1 as
       [ 
+      | Γ Σ' C H1 H2 IH2
+      |
+      | Γ Σ' C H1
+      | 
       | Γ Σ' A B C H1 H2 IH2
       | Γ Δ Σ' A B
       | Γ Δ Σ' A B C
@@ -207,13 +254,17 @@ Section ill_cut_free.
       | 
       ] in Σ |- *.
     + intros ->%Permutation_length_1_inv; auto.
-    + econstructor; eauto.
-    + intro; apply ill_cfp_times_r with Γ Δ; eauto.
-    + intro; apply ill_cfp_limp_l with Γ Δ A B; eauto.
-    + intro; apply ill_cfp_limp_r; eauto.
-    + intro; apply ill_cfp_with_l1 with Γ A B; eauto.
-    + intro; apply ill_cfp_with_l2 with Γ A B; eauto.
-    + intro; apply ill_cfp_with_r; eauto.
+    + intro; eapply ill_cfp_unit_l; eauto.
+    + intros ->%Permutation_nil; eauto.
+    + intro; eapply ill_cfp_bot_l; eauto.
+    + eauto.
+    + intro; eapply ill_cfp_times_l; eauto.
+    + intro; eapply ill_cfp_times_r; eauto.
+    + intro; eapply ill_cfp_limp_l; eauto.
+    + intro; eapply ill_cfp_limp_r; eauto.
+    + intro; eapply ill_cfp_with_l1; eauto.
+    + intro; eapply ill_cfp_with_l2; eauto.
+    + intro; eapply ill_cfp_with_r; eauto.
   Qed.
 
   Local Lemma ill_cf_inc_cfp Γ A : Γ ⊢ A → Γ ⊢ₚ A.
@@ -269,6 +320,18 @@ Section ill_cfp_dec.
   Inductive ill_rule_id : list stm → stm → Prop :=
     | ill_rid_intro A : ill_rule_id [] ([A],A).
 
+  Inductive ill_rule_unit_l : list stm → stm → Prop :=
+    | ill_runit_l_intro Γ Σ C : Σ ~ₚ 𝟙::Γ → ill_rule_unit_l [(Γ,C)] (Σ,C).
+
+  Inductive ill_rule_unit_r : list stm → stm → Prop :=
+    | ill_runit_r_intro : ill_rule_unit_r [] ([],𝟙).
+
+  Inductive ill_rule_bot_l : list stm → stm → Prop :=
+    | ill_rbot_l_intro Γ Σ C : Σ ~ₚ ⟘::Γ → ill_rule_bot_l [] (Σ,C).
+
+  Inductive ill_rule_top_r : list stm → stm → Prop :=
+    | ill_rtop_r_intro Γ : ill_rule_top_r [] (Γ,⟙).
+
   Inductive ill_rule_times_l : list stm → stm → Prop :=
     | ill_rtimes_l_intro Γ Σ A B C : Σ ~ₚ A⊗B::Γ → ill_rule_times_l [(A::B::Γ,C)] (Σ,C).
 
@@ -292,18 +355,22 @@ Section ill_cfp_dec.
 
   Let rule_map n := 
     match n with
-    | 0 => ill_rule_id
-    | 1 => ill_rule_times_l
-    | 2 => ill_rule_times_r
-    | 3 => ill_rule_limp_l
-    | 4 => ill_rule_limp_r
-    | 5 => ill_rule_with_l1
-    | 6 => ill_rule_with_l2
-    | _ => ill_rule_with_r
+    | 0  => ill_rule_id
+    | 1  => ill_rule_unit_l
+    | 2  => ill_rule_unit_r
+    | 3  => ill_rule_bot_l
+    | 4  => ill_rule_top_r
+    | 5  => ill_rule_times_l
+    | 6  => ill_rule_times_r
+    | 7  => ill_rule_limp_l
+    | 8  => ill_rule_limp_r
+    | 9  => ill_rule_with_l1
+    | 10 => ill_rule_with_l2
+    | _  => ill_rule_with_r
     end.
 
-  (** This is the system of rules, indexed with a natural number for each 8 rules *)
-  Let instances l s := ∃n, rule_map n l s ∧ n < 8.
+  (** This is the system of rules, indexed with a natural number for each 12 rules *)
+  Let instances l s := ∃n, rule_map n l s ∧ n < 12.
 
   Tactic Notation "solve" "with" "rule" constr(r) :=
      econstructor 1; [ exists r; split; [ econstructor; eauto | try lia ] | auto ].
@@ -338,11 +405,15 @@ Section ill_cfp_dec.
         * solve with rule 5.
         * solve with rule 6.
         * solve with rule 7.
+        * solve with rule 8.
+        * solve with rule 9.
+        * solve with rule 10.
+        * solve with rule 11.
       + change A with (snd (Γ,A)) at 2.
         change Γ with (fst (Γ,A)) at 2.
         generalize (Γ,A).
         induction 1 as [ ? ? (n & Hn & _) ].
-        do 7 (try destruct n as [|n]);
+        do 11 (try destruct n as [|n]);
           destruct Hn; simpl; split Forall; eauto.
     Qed.
 
@@ -375,7 +446,7 @@ Section ill_cfp_dec.
       intros s; induction on s as IH with measure (ill_seq_weight s).
       constructor; intros c (h & ((n & Hn & _) & H3)).
       apply IH; clear IH.
-      do 7 (try destruct n as [|n]);
+      do 11 (try destruct n as [|n]);
         destruct Hn; simpl in H3;
         split disj eqs H3; simpl.
       all: try match goal with H: _ ~ₚ _ |- _ => apply ill_list_weight_perm in H; simpl in H end; try lia.
@@ -398,6 +469,62 @@ Section ill_cfp_dec.
       + split.
         * intros []; subst; constructor.
         * now inversion 1.
+      + apply fin_t_cst_left; auto.
+    Qed.
+
+    Local Fact fin_t_ill_rule_unit_l s : fin_t (λ l, ill_rule_unit_l l s).
+    Proof.
+      destruct s as (Σ,C).
+      apply fin_t_equiv
+        with (P := λ l, ∃ D Γ, Σ ~ₚ D::Γ 
+                          ∧ match D with 
+                            | 𝟙 => l = [(Γ,C)]
+                            | _ => False 
+                            end).
+      + split.
+        * intros ([ | [] | ] & G & E & ?); (subst; constructor; auto) || easy.
+        * inversion 1; subst; do 2 eexists; split; eauto; now simpl.
+      + apply fin_t_perm_head.
+        intros [ | [] | ] ? ?; simpl; auto.
+    Qed.
+
+    Local Fact fin_t_ill_rule_unit_r s : fin_t (λ l, ill_rule_unit_r l s).
+    Proof using prop_eq_dec.
+      destruct s as (Σ,C).
+      apply fin_t_equiv
+        with (P := λ l, (Σ = [] ∧ C = 𝟙) ∧ l = []).
+      + split.
+        * intros ((-> & ->) & ->); constructor.
+        * inversion 1; now subst.
+      + apply fin_t_cst_left; auto.
+        destruct (ill_list_form_eq_dec Σ []);
+          destruct (ill_form_eq_dec C 𝟙); tauto.
+    Qed.
+
+    Local Fact fin_t_ill_rule_bot_l s : fin_t (λ l, ill_rule_bot_l l s).
+    Proof.
+      destruct s as (Σ,C).
+      apply fin_t_equiv
+        with (P := λ l, ∃ D Γ, Σ ~ₚ D::Γ 
+                          ∧ match D with 
+                            | ⟘ => l = []
+                            | _ => False 
+                            end).
+      + split.
+        * intros ([ | [] | ] & G & E & ?); (subst; econstructor; eauto) || easy.
+        * inversion 1; subst; do 2 eexists; split; eauto; now simpl.
+      + apply fin_t_perm_head.
+        intros [ | [] | ] ? ?; simpl; auto.
+    Qed.
+
+    Local Fact fin_t_ill_rule_top_r s : fin_t (λ l, ill_rule_top_r l s).
+    Proof using prop_eq_dec.
+      destruct s as (Σ,C).
+      apply fin_t_equiv
+        with (P := λ l, C = ⟙ ∧ l = []).
+      + split.
+        * intros (-> & ->); constructor.
+        * inversion 1; now subst.
       + apply fin_t_cst_left; auto.
     Qed.
 
@@ -510,6 +637,9 @@ Section ill_cfp_dec.
     Qed.
 
     Hint Resolve fin_t_ill_rule_id
+                 fin_t_ill_rule_unit_l fin_t_ill_rule_unit_r
+                 fin_t_ill_rule_bot_l
+                 fin_t_ill_rule_top_r
                  fin_t_ill_rule_times_l fin_t_ill_rule_times_r
                  fin_t_ill_rule_limp_l fin_t_ill_rule_limp_r
                  fin_t_ill_rule_with_l1 fin_t_ill_rule_with_l2 fin_t_ill_rule_with_r : core.
@@ -517,7 +647,7 @@ Section ill_cfp_dec.
     Local Lemma fin_t_instances c : fin_t (λ h, instances h c).
     Proof using prop_eq_dec.
       apply fin_t_idx_union.
-      intros n _; do 7 (try destruct n as [|n]); simpl; auto.
+      intros n _; do 11 (try destruct n as [|n]); simpl; auto.
     Qed.
 
   End finitary.
@@ -649,7 +779,7 @@ Section ill_rel_sem.
 
   Variables (φ : prop → M → Prop) (Hφ : ∀v, closed (φ v)).
 
-  Hint Resolve sem_ill_form_closed : core.
+  Hint Resolve sem_ill_form_closed sem_ill_list_form_closed : core.
 
   Theorem ill_sem_soundness Γ A : ill_cut_free Γ A → sem_ill_list_form (sem_ill_form φ) Γ ⊆ sem_ill_form φ A.
   Proof using cl_idempotent cl_increase cl_monotone
@@ -663,7 +793,15 @@ Section ill_rel_sem.
     + simpl; apply unit_neutral'; eauto.
     + apply inc_trans with (2 := IHill_cut_free).
       apply sem_ill_list_form_perm; auto.
-    + apply inc_trans with (2 := IHill_cut_free); simpl.
+    + simpl.
+      apply inc_trans with (2 := IHill_cut_free).
+      apply unit_neutral_1; eauto.
+    + simpl; auto.
+    + simpl.
+      eapply inc_trans; [ eapply times_bot_distrib_r; eauto | apply bot_least; auto ].
+    + simpl; auto.
+    + simpl.
+      apply inc_trans with (2 := IHill_cut_free); simpl.
       apply times_associative; eauto.
     + simpl.
       eapply inc_trans; [ eapply sem_ill_list_form_app | ]; auto.
@@ -691,8 +829,6 @@ Section ill_rel_sem.
   Qed.
 
 End ill_rel_sem.
-
-Section ill_cut_free_completeness.
 
 Section ill_cut_free_completeness.
 
@@ -817,25 +953,24 @@ Section ill_cut_free_completeness.
   Proof. apply sem_ill_list_form_closed; eauto. Qed.
 
   Hint Resolve sem_list_is_closed : core.
-  
-  (*
 
-  Local Fact cl_unit_l k h : cl (sg e ⟨BI_form_unit µ prop k h⟩.
-  Proof. intros ? ? ?; auto using LBI_unit_l. Qed.
-
-  Local Fact dwncl_unit_r k h : sg ø[k] ⊆ dwncl (BI_form_unit µ prop k h).
-  Proof. apply sg_inc, LBI_unit_r. Qed. 
-  
-  *)
-  
   Import ILL_notations.
   
   Hint Constructors ill_cut_free : core.
 
+  Local Fact cl_unit_l : cl (sg e) [𝟙].
+  Proof. intros ? ? H; apply ill_cf_unit_l, (H []); auto. Qed.
+
+  Local Fact dwncl_unit_r : sg [] ⊆ dwncl 𝟙.
+  Proof. apply sg_inc, ill_cf_unit_r. Qed.
+
+  Local Fact cl_bot_l : cl (λ _, False) [⟘].
+  Proof. intros ? ? ?; apply ill_cf_bot_l. Qed.
+
   Local Fact cl_times_l A B : cl (sg [A;B]) [A⊗B].
   Proof. intros ? ? H; apply ill_cf_times_l, (H [_;_]); auto. Qed.
 
-  Local Fact dwncl_conj_r A B :  dwncl A ∘ dwncl B ⊆ dwncl (A⊗B).
+  Local Fact dwncl_times_r A B :  dwncl A ∘ dwncl B ⊆ dwncl (A⊗B).
   Proof. intros ? [ ? ? ? ? ? H ]; red in H |- *; eauto. Qed.
  
   Local Fact cl_impl_l A B : (dwncl A ⊸ cl (sg [B])) [A-⊗B].
@@ -850,66 +985,60 @@ Section ill_cut_free_completeness.
       apply (H [_]); auto.
   Qed.
 
-  Local Fact dwncl_impl_r k h A B : sg ⟨A⟩ -⊚[k] dwncl B ⊆ dwncl (BI_form_impl k h A B).
-  Proof. intros G HG; apply LBI_impl_r, HG; exists ⟨A⟩ G; try red; auto. Qed.
+  Local Fact dwncl_impl_r A B : sg [A] ⊸ dwncl B ⊆ dwncl (A-⊗B).
+  Proof. intros G HG; apply ill_cf_limp_r, HG; exists [A] G; try red; auto. Qed.
 
-  Local Fact cl_disj_l h A B : cl (sg ⟨A⟩ ∪ sg ⟨B⟩) ⟨BI_form_disj h A B⟩.
-  Proof. intros ? ? H; apply LBI_disj_l; apply H; auto. Qed.
+  Local Fact cl_with_l1 A B : cl (sg [A]) [A&B].
+  Proof. intros ? ? H; apply ill_cf_with_l1, (H [_]); auto. Qed.
 
-  Local Fact dwncl_disj_r1 h A B : dwncl A ⊆ dwncl (BI_form_disj h A B).
-  Proof. intros ? ?; apply LBI_disj_r1; auto. Qed.
+  Local Fact cl_with_l2 A B : cl (sg [B]) [A&B].
+  Proof. intros ? ? H; apply ill_cf_with_l2, (H [_]); auto. Qed.
 
-  Local Fact dwncl_disj_r2 h A B : dwncl B ⊆ dwncl (BI_form_disj h A B).
-  Proof. intros ? ?; apply LBI_disj_r2; auto. Qed.
-
-
-  (** This is the main insight of Okada's lemma: instead
-      of proving sem_form A = dwncl A as in eg the Lindenbaum
-      construction, we show a weaker form, and this weaker form
-      does NOT require cut for its proof *)
+  Local Fact dwncl_with_r A B :  dwncl A ∩ dwncl B ⊆ dwncl (A&B).
+  Proof. intros ? []; apply ill_cf_with_r; auto. Qed. 
 
   Hint Resolve composes_monotone : core.
 
   Local Lemma sem_form_Okada A :
-      sem_form A ⟨A⟩
+      sem_form A [A]
     ∧ sem_form A ⊆ dwncl A.
   Proof.
-    induction A as [ 
-                   | k Hµ 
-                   | k Hµ A [IHA1 IHA2] B [IHB1 IHB2] 
-                   | k Hµ A [IHA1 IHA2] B [IHB1 IHB2] 
-                   | Hµ 
-                   | Hµ A [IHA1 IHA2] B [IHB1 IHB2]  ]; simpl; split; trivial.
-    + apply LBI_axiom.
-    + destruct k; apply cl_unit_l.
-    + destruct k; apply cl_closed; eauto using dwncl_unit_r.
-    + destruct k; apply cl_monotone with (2 := cl_conj_l _ _ _ _), sg_inc; econstructor; eauto; red; auto.
-    + destruct k; apply cl_closed; eauto; apply inc_trans with (2 := dwncl_conj_r _ _ _ _); eauto.
-    + destruct k; apply magicwand_monotone with (3 := cl_impl_l _ _ _ _); auto; apply cl_closed; eauto; now apply sg_inc.
-    + destruct k; apply inc_trans with (2 := dwncl_impl_r _ _ _ _); apply magicwand_monotone; auto; now apply sg_inc.
-    + intros ? ? ?; apply LBI_bot_l.
+    induction A as [ v
+                   | [] 
+                   | [] A [] B [] ]; simpl; split; trivial.
+    + apply ill_cf_ax.
+    + apply cl_unit_l.
+    + apply cl_closed; eauto using dwncl_unit_r.
+    + apply cl_bot_l.
     + apply cl_closed; now eauto.
-    + apply cl_monotone with (2 := cl_disj_l _ _ _); intros ? [<- | <-]; auto.
-    + apply cl_closed; eauto; intros ? []; [ apply dwncl_disj_r1 | apply dwncl_disj_r2 ]; auto.
+    + intros G _; apply ill_cf_top_r.
+    + split.
+      * generalize (@cl_with_l1 A B).
+        apply cl_closed; eauto.
+        now apply sg_inc.
+      * generalize (@cl_with_l2 A B).
+        apply cl_closed; eauto.
+        now apply sg_inc.
+    + intros ? []; apply dwncl_with_r; auto.
+    + apply magicwand_monotone with (3 := @cl_impl_l _ _); auto; apply cl_closed; eauto; now apply sg_inc.
+    + apply inc_trans with (2 := @dwncl_impl_r _ _); apply magicwand_monotone; auto; now apply sg_inc.
+    + apply cl_monotone with (2 := @cl_times_l _ _), sg_inc; econstructor; eauto; red; auto.
+    + apply cl_closed; eauto; apply inc_trans with (2 := @dwncl_times_r _ _); eauto.
   Qed.
 
-  Local Corollary sem_bunch_Okada Γ : sem_bunch Γ Γ.
+  Local Corollary sem_list_Okada Γ : sem_list Γ Γ.
   Proof.
-    induction Γ as [ | [] | [] ]; simpl; auto using cl_increase.
-    + apply sem_form_Okada.
-    + apply cl_increase; exists Γ1 Γ2; red; auto.
-    + apply cl_increase; exists Γ1 Γ2; red; auto.
+    induction Γ as [ | ]; simpl; auto using cl_increase.
+    apply cl_increase; eexists _ _; eauto; [ eapply sem_form_Okada | ].
+    constructor; auto.
   Qed.
 
-  Theorem LBI_cut_elim c Γ A : Γ L⊦[c] A → Γ L⊦[BI_cut_free] A.
-  Proof.
-    intros HA.
-    cut (sem_bunch Γ ⊆ sem_form A).
-    + intros H; apply sem_form_Okada, H, sem_bunch_Okada.
-    + revert A HA; apply LBI_soundness; auto; eauto.
-  Qed.
+  Theorem ill_cut_free_completeness Γ A : sem_list Γ ⊆ sem_form A → Γ ⊢ A.
+  Proof. intros H; apply sem_form_Okada, H, sem_list_Okada. Qed.
 
-End LBI_cut_elim.
+End ill_cut_free_completeness.
+
+Check ill_cut_free_completeness.
 
 
   
