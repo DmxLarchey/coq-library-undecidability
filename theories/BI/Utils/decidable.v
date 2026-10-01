@@ -156,7 +156,7 @@ Section with_equivalence.
   
   (** Under the assumptions that:
       1/ instances are decreasing according to measure m,
-      2/ instances is finitely branching 
+      2/ instances are finitely branching 
       3/ the equivalence relation ≡ is finitary
       4/ and preserves the measure m 
       then the provability predicate for instances augmented with
