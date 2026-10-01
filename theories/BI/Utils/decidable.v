@@ -15,6 +15,15 @@ Import ListNotations.
 
 Set Implicit Arguments.
 
+Fact decidable_equiv X (P Q : X → Prop) :
+    (∀x, P x ↔ Q x)
+  → (∀x, { P x } + { ~ P x })
+  → (∀x, { Q x } + { ~ Q x }).
+Proof.
+  intros H1 H2 x.
+  generalize (H2 x); firstorder.
+Qed.
+
 Section provable.
 
   Variables (stm : Type) (instances : list stm → stm → Prop).
@@ -42,7 +51,7 @@ Section provable.
   End provable_ind.
 
   #[global] Register Scheme provable_ind as ind_dep for provable.
-  
+
   Section decidable.
 
     Hypothesis (wf : well_founded (λ r s, ∃h, instances h s ∧ In r h))
@@ -55,11 +64,15 @@ Section provable.
       induction c as [ c IH ] using (well_founded_induction_type wf).
       destruct (finitary c) as [ hh Hhh ].
       destruct list_choose_dep
-        with (P := Forall provable) (Q := λ h, ¬ Forall provable h) (l := hh)
+        with (P := Forall provable)
+             (Q := λ h, ¬ Forall provable h)
+             (l := hh)
         as [ (? & ?%Hhh & ?) | C ]; eauto.
       + intros h H%Hhh.
         destruct list_choose_dep 
-          with (P := λ x, ¬ provable x) (Q := provable) (l := h)
+          with (P := λ x, ¬ provable x)
+               (Q := provable)
+               (l := h)
           as [ (? & H1 & ?) | ]; auto.
         * intros s ?; destruct (IH s); eauto.
         * right; rewrite Forall_forall; contradict H1; auto.
@@ -78,7 +91,7 @@ End provable.
 Fact provable_mono stm (i1 i2 : list stm → stm → Prop) :
     (∀ l c, i1 l c → i2 l c)
   → ∀c, provable i1 c → provable i2 c.
-Proof. induction 2; eauto. Qed. 
+Proof. induction 2; eauto. Qed.
 
 Section with_equivalence.
 
@@ -91,13 +104,15 @@ Section with_equivalence.
              (E_sym :   ∀ s t, s ≡ t → t ≡ s)
              (E_trans : ∀ r s t, r ≡ s → s ≡ t → r ≡ t).
 
-  (** Merging the equivalence rule with each instance *)
+  (** Merging the equivalence rule with each instance, at the conclusion *)
   Let instances_1 l c := ∃c', instances l c' ∧ c' ≡ c.
 
-  (** Adding an equivalence rule to instances *)
+  (** Adding a separate equivalence rule to instances *)
   Let instances_2 l c := instances l c ∨ ∃c', l = [c'] ∧ c' ≡ c.
 
-  Local Fact provable_1_E c c' : provable instances_1 c → c ≡ c' → provable instances_1 c'.
+  (** Merging equivalence with each rule creates a provability predicate closed
+      under the equivalence rule *)
+  Local Lemma provable_1_equiv c c' : provable instances_1 c → c ≡ c' → provable instances_1 c'.
   Proof using E_refl E_sym E_trans.
     induction 1 as [ h c (d & H1 & H2) H IH ] in c' |- *; intros Hc.
     constructor 1 with h.
@@ -105,33 +120,37 @@ Section with_equivalence.
     + revert IH; apply Forall_impl; eauto.
   Qed.
 
+  (** Hence provable_2 is stronger than provable_1 *)
   Local Fact provable_2_1 c : provable instances_2 c → provable instances_1 c.
   Proof using E_refl E_sym E_trans.
-    induction 1 as [ h c [ H1 | (c' & -> & H1) ] H IH ].
-    + constructor 1 with h; auto.
-      exists c; auto.
+    induction 1 as [ h c [ | (? & -> & ?) ] _ IH ].
+    + constructor 1 with h; [ eexists | ]; eauto.
     + apply Forall_cons_iff in IH as [].
-      eauto using provable_1_E.
+      eauto using provable_1_equiv.
   Qed.
 
+  (** The converse is trivial of course *)
   Local Fact provable_1_2 c : provable instances_1 c → provable instances_2 c.
   Proof.
-    induction 1 as [ h c (c' & H1 & H2) H IH ].
-    constructor 1 with [c'].
+    induction 1 as [ ? ? (? & []) ].
+    econstructor.
     + right; eauto.
     + constructor; auto.
-      constructor 1 with h; auto.
+      econstructor; eauto.
       left; auto.
   Qed.
 
-  Theorem provable_equiv_iff c : provable instances_1 c ↔ provable instances_2 c.
-  Proof using E_refl E_sym E_trans. split; auto using provable_2_1, provable_1_2. Qed.
+  (** Hence the two provability predicates are equivalent *)
+  Local Lemma provable_equiv_iff c : provable instances_1 c ↔ provable instances_2 c.
+  Proof using E_refl E_sym E_trans.
+    split; auto using provable_2_1, provable_1_2.
+  Qed.
 
   Variables (m : stm → nat)
             (E_m : ∀ s t, s ≡ t → m s = m t)
             (instances_m : ∀ h c, instances h c → Forall (λ x, m x < m c) h).
 
-  Local Fact instances_1_wf : well_founded (λ r s, ∃h, instances_1 h s ∧ In r h).
+  Local Lemma instances_1_wf : well_founded (λ r s, ∃h, instances_1 h s ∧ In r h).
   Proof using E_m instances_m.
     intro c; induction on c as IH with measure (m c).
     constructor.
@@ -141,19 +160,14 @@ Section with_equivalence.
     rewrite Forall_forall in H1; auto.
   Qed.
 
-  Variables (fin_instances : ∀c, fin_t (λ h, instances h c))
-            (fin_E : ∀s, fin_t (λ t, t ≡ s)).
+  Hypotheses (fin_t_instances : ∀c, fin_t (λ h, instances h c))
+             (fin_t_E : ∀s, fin_t (λ t, t ≡ s)).
 
-  Local Fact instances_1_fin c : fin_t (λ h, instances_1 h c).
-  Proof using fin_E fin_instances.
+  Local Lemma instances_1_fin c : fin_t (λ h, instances_1 h c).
+  Proof using fin_t_E fin_t_instances.
     apply fin_t_compose; auto.
   Qed.
-  
-  Local Lemma provables_1_dec c : { provable instances_1 c } + { ¬ provable instances_1 c }.
-  Proof using E_m fin_E fin_instances instances_m.
-    apply provable_wf_fin_dec; auto using instances_1_wf, instances_1_fin.
-  Qed.
-  
+
   (** Under the assumptions that:
       1/ instances are decreasing according to measure m,
       2/ instances are finitely branching 
@@ -162,10 +176,10 @@ Section with_equivalence.
       then the provability predicate for instances augmented with
       an equivalence rule is decdidable *)
 
-  Theorem provable_decr_fin_equiv_dec c : { provable instances_2 c } + { ¬ provable instances_2 c }.
-  Proof using E_refl E_sym E_trans E_m fin_E fin_instances instances_m.
-    generalize (provables_1_dec c).
-    intros [ H | H ]; [ left | right; contradict H]; revert H; apply provable_equiv_iff.
+  Theorem provable_decr_fin_equiv_dec : ∀c, { provable instances_2 c } + { ¬ provable instances_2 c }.
+  Proof using E_refl E_sym E_trans E_m instances_m fin_t_E fin_t_instances.
+    apply decidable_equiv with (1 := provable_equiv_iff), provable_wf_fin_dec;
+      auto using instances_1_wf, instances_1_fin.
   Qed.
 
 End with_equivalence.
