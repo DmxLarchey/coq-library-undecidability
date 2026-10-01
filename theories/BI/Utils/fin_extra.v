@@ -111,6 +111,20 @@ Qed.
 
 #[local] Hint Resolve fin_t_split fin_t_cons fin_t_eq : core.
 
+Fact fin_t_of_split X Y (l : list X) (R : list X → list X → Y → Prop) :
+    (∀ m p, l = m++p → fin_t (R m p))
+  → fin_t (λ y, ∃ m p, l = m++p ∧ R m p y).
+Proof.
+  intros H.
+  apply fin_t_equiv
+    with (P := λ y, ∃p, R (fst p) (snd p) y
+                    ∧ l = fst p++snd p).
+  + intros y; split.
+    * intros ([] & ? & ->); simpl in *; eauto.
+    * intros (m & p & []); exists (m,p); eauto.
+  + apply fin_t_compose; auto.
+Qed.
+
 Fact fin_t_perm X (l : list X) : fin_t (λ m, l ~ₚ m).
 Proof.
   induction l as [ | x l IH ].
@@ -134,6 +148,12 @@ Proof.
 Qed.
 
 #[local] Hint Resolve fin_t_perm : core.
+
+Fact fin_t_perm' X (l : list X) : fin_t (λ m, m ~ₚ l).
+Proof.
+  apply fin_t_equiv with (Permutation l); auto.
+  split; auto using Permutation_sym.
+Qed.
 
 Fact fin_t_perm_head X Y (l : list X) (R : X → list X → Y → Prop) :
     (∀ x m, l ~ₚ x::m → fin_t (R x m))
