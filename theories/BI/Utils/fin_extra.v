@@ -34,6 +34,55 @@ Proof.
   + apply fin_t_In.
 Qed.
 
+Fact fin_t_bin_union X (P Q : X → Prop) :
+  fin_t P → fin_t Q → fin_t (λ x, P x ∨ Q x).
+Proof.
+  intros (l & Hl) (m & Hm); exists (l++m).
+  intro; now rewrite in_app_iff, Hl, Hm.
+Qed.
+
+#[local] Hint Resolve fin_t_empty fin_t_bin_union : core.
+
+Inductive In_t {X} (x : X) : list X → Type :=
+  | In_t_left l : In_t x (x::l)
+  | In_t_right y l : In_t x l → In_t x (y::l).
+
+#[local] Hint Constructors In_t : core.
+
+Fact In_t__In X (x : X) l : In_t x l → In x l.
+Proof. induction 1; simpl; eauto. Qed.
+
+Fact In_t_inv X (x : X) l :
+    In_t x l
+  → match l return Type with 
+    | []   => False
+    | y::l => ((y = x) + In_t x l)%type
+    end.
+Proof. destruct 1; auto. Qed. 
+
+Section fin_t_compose_In_t.
+
+  Variable (X Y : Type) (R : X → Y → Prop).
+
+  (** A very useful lemma to compose finitary relations *)
+
+  Lemma fin_t_compose_In_t l :
+      (∀x, In_t x l → fin_t (R x))
+    → fin_t (λ y, ∃ x, R x y ∧ In x l).
+  Proof.
+    induction l as [ | x l IHl ].
+    + intros _; apply fin_t_equiv with (λ _, False); auto.
+      simpl; firstorder.
+    + intros H.
+      apply fin_t_equiv with (λ y, (∃x', R x' y ∧ In x' l) ∨ R x y).
+      * split.
+        - intros [ (? & []) | ]; eexists; simpl; eauto.
+        - intros (? & ? & [ |]); subst; eauto.
+      * apply fin_t_bin_union; eauto.
+  Qed.  
+
+End fin_t_compose_In_t.
+
 Section fin_compose.
 
   Variable (X Y : Type) (R : X → Y → Prop) (P : Y → Prop).
@@ -46,25 +95,10 @@ Section fin_compose.
            → fin_t (λ x, ∃ y, R x y ∧ P y).
   Proof.
     intros H (lP & HP).
-    apply fin_t_equiv with (fun x => exists y, R x y /\ In y lP).
-    + intros x; split; intros (y & Hy); exists y; revert Hy; rewrite HP; auto.
-    + cut (forall y, In y lP -> fin_t (fun x => R x y)).
-      2: intros; apply H, HP; auto.
-      clear P HP H.
-      induction lP as [ | y lP IHlP ]; intros H.
-      * exists nil; intros k; split.
-        - intros (? & _ & []).
-        - intros [].
-      * destruct IHlP as (ll & Hll).
-        - intros; apply H; simpl; auto.
-        - destruct (H y) as (l & Hl); simpl; auto.
-          exists (l++ll); intros x; rewrite in_app_iff, <- Hl, <- Hll.
-          split.
-          ++ intros (y' & H1 & [ <- | H2 ]); auto.
-             right; exists y'; auto.
-          ++ intros [ | (y' & ? & ?) ].
-             ** exists y; auto.
-             ** exists y'; auto.
+    apply fin_t_equiv with (λ y, ∃ x, R y x ∧ In x lP).
+    + firstorder.
+    + apply fin_t_compose_In_t.
+      intros ? ?%In_t__In%HP; auto.
   Qed.
 
 End fin_compose.

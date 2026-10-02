@@ -7,7 +7,7 @@
 (*        Mozilla Public License Version 2.0, MPL-2.0         *)
 (**************************************************************)
 
-From Stdlib Require Import List Permutation Arith Lia Utf8.
+From Stdlib Require Import List Permutation Relations Arith Lia Utf8.
 
 From Undecidability.BI.Utils
   Require Import decidable rel_phase_sem.
@@ -33,6 +33,32 @@ Import ListNotations.
 #[local] Hint Resolve eq_sg : core. 
 
 #[local] Infix "~ₚ" := (@Permutation _) (at level 70).
+
+#[local] Fact In_inv X (x : X) l :
+    In x l
+  → match l with 
+    | []   => False
+    | y::l => y = x ∨ In x l
+    end.
+Proof. now destruct l. Qed.
+
+Tactic Notation "split" "In" hyp(H) :=
+  repeat match type of H with
+  | In _ []     => apply In_inv in H as []
+  | In _ (_::_) => apply In_inv in H as [ <- | H ]
+  end.
+
+Tactic Notation "split" "In_t" hyp(H) :=
+  repeat match type of H with
+  | In_t _ []     => apply In_t_inv in H as []
+  | In_t _ (_::_) => apply In_t_inv in H as [ <- | H ]
+  end.
+
+Tactic Notation "split" "Forall" :=
+  repeat match goal with
+  | H: Forall _ [] |- _ => clear H
+  | H: Forall _ (_::_) |- _ => apply Forall_cons_iff in H as [ ? H ]
+  end.
 
 (** Intuionistic Linear Logic, the ⊗, ⊸ and & fragment with constants *)
 
@@ -212,77 +238,53 @@ Section ill_cut_free_decidable.
   Inductive ill_rule_with_r : list stm → stm → Prop := 
     | ill_rwith_r_intro Γ A B : ill_rule_with_r [(Γ,A);(Γ,B)] (Γ,A&B).
 
-  Let Fixpoint rule_map l n { struct l } : list stm → stm → Prop :=
-    match l with
-    | []   => fun _ _ => False
-    | r::l => match n with
-      | 0   => r
-      | S n => rule_map l n
-      end
-    end.
+  (** Notice that the permutation rule is voluntarily excluded in ill_cf_rules *)
+  Let ill_cf_rules := [ ill_rule_id
+                      ; ill_rule_unit_l ; ill_rule_unit_r
+                      ; ill_rule_bot_l
+                      ; ill_rule_top_r 
+                      ; ill_rule_times_l ; ill_rule_times_r 
+                      ; ill_rule_limp_l ; ill_rule_limp_r
+                      ; ill_rule_with_l1 ; ill_rule_with_l2 ; ill_rule_with_r ].
+  Let ill_cf h c := ∃r, r h c ∧ In r ill_cf_rules.
 
-  Let ill_rules := [ ill_rule_id
-                   ; ill_rule_unit_l ; ill_rule_unit_r
-                   ; ill_rule_bot_l
-                   ; ill_rule_top_r 
-                   ; ill_rule_times_l ; ill_rule_times_r 
-                   ; ill_rule_limp_l ; ill_rule_limp_r
-                   ; ill_rule_with_l1 ; ill_rule_with_l2 ; ill_rule_with_r ].
-
-  Abbreviation ill_rule_map := (rule_map ill_rules).
-
-  (** This is the system of rules, indexed with a natural number for each 12 rules 
-      Indexing with rules directly (instead of nat) does not give decidable equality 
-      over indices !! *)
-  Let instances l s := ∃n, ill_rule_map n l s ∧ n < 12.
-
-  Tactic Notation "solve" "with" "rule" constr(r) :=
-     econstructor 1; [ left; exists r; split; [ econstructor; eauto | try lia ] | auto ].
-
-  Tactic Notation "split" "disj" "eqs" hyp(H) :=
-    repeat match type of H with
-           | False => destruct H
-           | _ = _ \/ _ => destruct H as [ <- | H ]
-           end.
-
-  Tactic Notation "split" "Forall" :=
-    repeat match goal with
-           | H: Forall _ [] |- _ => clear H
-           | H: Forall _ (_::_) |- _ => apply Forall_cons_iff in H as [ ? H ]
-           end.
-
-  Let instances' h c := instances h c ∨ ∃c', h = [c'] ∧ (fst c' ~ₚ fst c ∧ snd c' = snd c).
+  (** Now we add the permutation rule here *)
+  Let E (c c' : stm) := fst c ~ₚ fst c' ∧ snd c = snd c'.
+  Let ill_cf_perm h c := ill_cf h c ∨ ∃c', h = [c'] ∧ E c' c.
 
   Section equivalence.
 
     Hint Constructors ill_cut_free : core.
 
-    Local Lemma ill_cf_iff_rules Γ A : Γ ⊢ A ↔ provable instances' (Γ,A).
+     Tactic Notation "solve" "with" "rule" constr(r) :=
+     econstructor 1; [ left; exists r; split; [ econstructor; eauto | ] | ]; simpl; auto; firstorder.
+
+    Local Lemma ill_cf_iff_rules Γ A : Γ ⊢ A ↔ provable ill_cf_perm (Γ,A).
     Proof.
       split.
       + induction 1.
-        * solve with rule 0.
+        * solve with rule ill_rule_id.
         * (* The permutation rule has a special treatment *) 
           constructor 1 with [(Γ,A)].
-          - right; eexists; eauto.
+          - right; eexists; unfold E; eauto.
           - constructor; auto.
-        * solve with rule 1.
-        * solve with rule 2.
-        * solve with rule 3.
-        * solve with rule 4.
-        * solve with rule 5.
-        * solve with rule 6.
-        * solve with rule 7.
-        * solve with rule 8.
-        * solve with rule 9.
-        * solve with rule 10.
-        * solve with rule 11.
+        * solve with rule ill_rule_unit_l.
+        * solve with rule ill_rule_unit_r.
+        * solve with rule ill_rule_bot_l.
+        * solve with rule ill_rule_top_r.
+        * solve with rule ill_rule_times_l.
+        * solve with rule ill_rule_times_r.
+        * solve with rule ill_rule_limp_l.
+        * solve with rule ill_rule_limp_r.
+        * solve with rule ill_rule_with_l1.
+        * solve with rule ill_rule_with_l2.
+        * solve with rule ill_rule_with_r.
       + change A with (snd (Γ,A)) at 2.
         change Γ with (fst (Γ,A)) at 2.
         generalize (Γ,A).
-        induction 1 as [ ? ? [ (n & Hn & _) | (c' & -> & E & <-) ] ? H ].
-        * do 12 (try destruct n as [|n]);
-            destruct Hn; simpl; split Forall; eauto.
+        induction 1 as [ ? ? [ (r & H1 & Hr) | (c' & -> & ? & <-) ] ? H ].
+        * unfold ill_cf_rules in Hr.
+          split In Hr; destruct H1; simpl; split Forall; eauto.
         * apply Forall_cons_iff in H as []; eauto.
     Qed.
 
@@ -290,7 +292,7 @@ Section ill_cut_free_decidable.
 
   Section decreasing.
 
-    (** We show rule implications is well-founded *)
+    (** We show that reverse rule application for ill_cf is decreasing (hence well-founded) *)
 
     Local Fixpoint ill_form_weight (A : ill_form prop) :=
       match A with
@@ -310,10 +312,11 @@ Section ill_cut_free_decidable.
     Local Definition ill_seq_weight '(Γ,A) := ill_list_weight Γ + ill_form_weight A.
 
     (* By strong induction on the weight *)
-    Local Lemma instances_decr h c : instances h c -> Forall (λ x, ill_seq_weight x < ill_seq_weight c) h.
+    Local Lemma instances_decr h c : ill_cf h c → Forall (λ x, ill_seq_weight x < ill_seq_weight c) h.
     Proof.
-      intros (n & Hn & ?).
-      do 12 (try destruct n as [|n]); destruct Hn; repeat apply Forall_cons; auto; simpl; try lia.
+      intros (r & H1 & Hr).
+      unfold ill_cf_rules in Hr.
+      split In Hr; destruct H1; repeat apply Forall_cons; auto; simpl; try lia.
       all: try rewrite  ill_list_weight_app in *; try lia.
     Qed.
 
@@ -321,19 +324,18 @@ Section ill_cut_free_decidable.
 
   Section finitary.
 
-    (** We show that each individual rule is finitary *)
+    (** We show that each individual rule of ill_cf is finitary *)
 
-    Hint Resolve fin_t_cst_left fin_t_eq fin_t_empty
+    Hint Resolve fin_t_cst_left fin_t_eq fin_t_empty fin_t_of_split fin_t_In
                  ill_list_form_eq_dec : core.
 
     Local Fact fin_t_ill_rule_id s : fin_t (λ l, ill_rule_id l s).
     Proof using prop_eq_dec.
       destruct s as (Γ,A).
-      apply fin_t_equiv with (λ l, Γ = [A] ∧ l = []).
-      + split.
-        * intros []; subst; constructor.
-        * now inversion 1.
-      + apply fin_t_cst_left; auto.
+      apply fin_t_equiv with (λ l, Γ = [A] ∧ l = []); auto.
+      split.
+      + intros []; subst; constructor.
+      + now inversion 1.
     Qed.
 
     Local Fact fin_t_ill_rule_unit_l s : fin_t (λ l, ill_rule_unit_l l s).
@@ -411,7 +413,6 @@ Section ill_cut_free_decidable.
           intros (? & ? & []); now subst.
         * inversion 1; subst; eauto.
       + destruct C as [ | | [] ]; simpl; auto.
-        apply fin_t_of_split; auto.
     Qed.
 
     Local Fact fin_t_ill_rule_limp_l s : fin_t (λ l, ill_rule_limp_l l s).
@@ -427,7 +428,6 @@ Section ill_cut_free_decidable.
           now intros (? & ? & -> & ->).
         * inversion 1; subst; eauto.
       + destruct Σ as [ | [ | [] | [] ] ]; auto.
-        apply fin_t_of_split; auto.
     Qed.
   
     Local Fact fin_t_ill_rule_limp_r s : fin_t (λ l, ill_rule_limp_r l s).
@@ -494,10 +494,11 @@ Section ill_cut_free_decidable.
                  fin_t_ill_rule_limp_l fin_t_ill_rule_limp_r
                  fin_t_ill_rule_with_l1 fin_t_ill_rule_with_l2 fin_t_ill_rule_with_r : core.
 
-    Local Lemma fin_t_instances c : fin_t (λ h, instances h c).
+    Local Lemma fin_t_instances c : fin_t (λ h, ill_cf h c).
     Proof using prop_eq_dec.
-      apply fin_t_idx_union.
-      intros n _; do 12 (try destruct n as [|n]); simpl; auto.
+      apply fin_t_compose_In_t; auto.
+      simpl; intros r Hr; unfold ill_cf_rules in Hr.
+      split In_t Hr; auto.
     Qed.
 
   End finitary.
@@ -505,20 +506,18 @@ Section ill_cut_free_decidable.
   Hint Constructors Permutation : core.
   Hint Resolve Permutation_sym ill_list_weight_perm : core.
   Hint Resolve fin_t_eq fin_t_perm' : core.
-  Hint Resolve instances_decr fin_t_instances : core. 
+  Hint Resolve instances_decr fin_t_instances : core.
 
-  Local Theorem prov_instances'_dec : ∀c, { provable instances' c } + { ¬ provable instances' c }.
+  Local Lemma prov_instances'_dec : ∀c, { provable ill_cf_perm c } + { ¬ provable ill_cf_perm c }.
   Proof using prop_eq_dec.
     apply provable_decr_fin_equiv_dec with (m := ill_seq_weight); eauto.
-    + intros [] []; simpl; intros []; split; eauto.
-    + intros [] [] []; simpl; intros [] []; split; subst; eauto.
+    + apply equivalence_product; split; red; eauto; intros; subst; auto.
     + intros [] [] []; simpl in *; subst; f_equal; auto.
-    + intros (l,c); simpl. Check fin_t_prod.
-      apply fin_t_prod with (P := fun x => x ~ₚ l) (Q := fun x => x = c); auto.
+    + intros (l,c); simpl; apply fin_t_prod with (P := λ x, x ~ₚ l) (Q := λ x, x = c); auto.
   Qed.
 
-  (* We transport decidability along equivalence *)
-  Corollary ill_cut_free_decidable Γ A : { Γ ⊢ A } + { ¬ Γ ⊢ A }.
+  (* We transport decidability along logical equivalence *)
+  Theorem ill_cut_free_decidable Γ A : { Γ ⊢ A } + { ¬ Γ ⊢ A }.
   Proof using prop_eq_dec.
     destruct (prov_instances'_dec (Γ,A)); [ left | right ]; now rewrite ill_cf_iff_rules.
   Qed.

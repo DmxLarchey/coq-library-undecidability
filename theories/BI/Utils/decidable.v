@@ -7,7 +7,7 @@
 (*        Mozilla Public License Version 2.0, MPL-2.0         *)
 (**************************************************************)
 
-From Stdlib Require Import Arith List Utf8.
+From Stdlib Require Import Arith List Relations Utf8.
 From Undecidability.Shared Require Import fin_base utils_decidable fin_dec measure_ind.
 From Undecidability.BI Require Import fin_extra.
 
@@ -23,6 +23,17 @@ Proof.
   intros H1 H2 x.
   generalize (H2 x); firstorder.
 Qed.
+
+Fact equivalence_product X Y E₁ E₂ :
+    equivalence X E₁
+  → equivalence Y E₂
+  → equivalence _ (λ p q, E₁ (fst p) (fst q) ∧ E₂ (snd p) (snd q)).
+Proof.
+  intros [] []; split.
+  + intros []; simpl; auto.
+  + intros [] [] [] [] []; simpl; eauto.
+  + intros [] [] []; simpl; auto.
+Qed.  
 
 Section provable.
 
@@ -100,9 +111,7 @@ Section with_equivalence.
 
   Infix "≡" := E (at level 70).
 
-  Hypotheses (E_refl :  ∀ s, s ≡ s)
-             (E_sym :   ∀ s t, s ≡ t → t ≡ s)
-             (E_trans : ∀ r s t, r ≡ s → s ≡ t → r ≡ t).
+  Hypotheses (E_equiv : equivalence _ E).
 
   (** Merging the equivalence rule with each instance, at the conclusion *)
   Let instances_1 l c := ∃c', instances l c' ∧ c' ≡ c.
@@ -113,7 +122,8 @@ Section with_equivalence.
   (** Merging equivalence with each rule creates a provability predicate closed
       under the equivalence rule *)
   Local Lemma provable_1_equiv c c' : provable instances_1 c → c ≡ c' → provable instances_1 c'.
-  Proof using E_refl E_sym E_trans.
+  Proof using E_equiv.
+    destruct E_equiv.
     induction 1 as [ h c (d & H1 & H2) H IH ] in c' |- *; intros Hc.
     constructor 1 with h.
     + exists d; split; eauto.
@@ -122,7 +132,8 @@ Section with_equivalence.
 
   (** Hence provable_2 is stronger than provable_1 *)
   Local Fact provable_2_1 c : provable instances_2 c → provable instances_1 c.
-  Proof using E_refl E_sym E_trans.
+  Proof using E_equiv.
+    destruct E_equiv.
     induction 1 as [ h c [ | (? & -> & ?) ] _ IH ].
     + constructor 1 with h; [ eexists | ]; eauto.
     + apply Forall_cons_iff in IH as [].
@@ -142,7 +153,7 @@ Section with_equivalence.
 
   (** Hence the two provability predicates are equivalent *)
   Local Lemma provable_equiv_iff c : provable instances_1 c ↔ provable instances_2 c.
-  Proof using E_refl E_sym E_trans.
+  Proof using E_equiv.
     split; auto using provable_2_1, provable_1_2.
   Qed.
 
@@ -177,7 +188,7 @@ Section with_equivalence.
       an equivalence rule is decdidable *)
 
   Theorem provable_decr_fin_equiv_dec : ∀c, { provable instances_2 c } + { ¬ provable instances_2 c }.
-  Proof using E_refl E_sym E_trans E_m instances_m fin_t_E fin_t_instances.
+  Proof using E_equiv E_m instances_m fin_t_E fin_t_instances.
     apply decidable_equiv with (1 := provable_equiv_iff), provable_wf_fin_dec;
       auto using instances_1_wf, instances_1_fin.
   Qed.
